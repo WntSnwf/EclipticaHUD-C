@@ -3,8 +3,7 @@
  * 构建运行：  mingw32-make test
  * 回放实测：  test_core.exe <日志文件>     打印事件/目标切换的统计摘要
  *
- * 测试用的日志行全部取自真实 VRChat output_log（含非官方改版世界
- * "男生女生向前冲" 的会话）。
+ * 测试用的日志行取自真实 VRChat output_log。
  *
  * 注意：Stats 结构体较大（几百 KB），实例一律放在静态存储区，不要放栈上。
  */
@@ -90,9 +89,9 @@ static void test_parser(void)
     CHECK(parse_line("2026.09.23 13:43:17 Debug      -  [Behaviour] Entering Room: Ecliptica - Demo Playtest", &e)
           && e.type == EV_ROOM_ENTER && !strcmp(e.name, "Ecliptica - Demo Playtest"),
           "Entering Room");
-    CHECK(parse_line("2026.09.23 13:28:10 Debug      -  [Behaviour] Entering Room: 男生女生向前冲", &e)
-          && e.type == EV_ROOM_ENTER && !strcmp(e.name, "男生女生向前冲"),
-          "Entering Room（非官方改版世界名）");
+    CHECK(parse_line("2026.09.23 13:28:10 Debug      -  [Behaviour] Entering Room: 测试房间", &e)
+          && e.type == EV_ROOM_ENTER && !strcmp(e.name, "测试房间"),
+          "Entering Room（中文世界名）");
     CHECK(parse_line("2026.09.22 17:08:33 Debug      -  [Behaviour] OnLeftRoom", &e)
           && e.type == EV_ROOM_LEFT, "OnLeftRoom");
     CHECK(parse_line("2026.09.22 17:08:20 Debug      -  Local controller dead, switching off.", &e)
@@ -167,13 +166,14 @@ static void test_world_aliases(void)
     names_set_world_aliases(NULL);
     CHECK(names_is_ecl_world("Ecliptica - Demo Playtest"), "官方世界名被识别");
     CHECK(names_is_ecl_world("ecliptica"), "大小写不敏感");
-    CHECK(names_is_ecl_world("男生女生向前冲"), "非官方改版世界名被识别");
+    CHECK(!names_is_ecl_world("Sample Combat World"), "未登记的房间名不误判");
     CHECK(!names_is_ecl_world("Yuki Room"), "无关世界不被误判");
     CHECK(!names_is_ecl_world(""), "空世界名不被误判");
 
-    names_set_world_aliases("MyReskin|另一个改版");
-    CHECK(names_is_ecl_world("MyReskin v2"), "配置追加别名生效");
-    CHECK(names_is_ecl_world("另一个改版 世界"), "配置追加中文别名生效");
+    names_set_world_aliases("Sample Combat World|另一个测试世界");
+    CHECK(names_is_ecl_world("Sample Combat World"), "配置登记的世界名生效");
+    CHECK(names_is_ecl_world("Sample Combat World (v2)"), "子串匹配生效");
+    CHECK(names_is_ecl_world("另一个测试世界"), "配置登记的中文世界名生效");
     CHECK(!names_is_ecl_world("Cookie Clicker VR"), "未登记的其它世界仍不误判");
     names_set_world_aliases(NULL);
 }
@@ -256,12 +256,12 @@ static void test_stats_run(void)
     CHECK(g_st.cur_run.stages[0].attacks[0].hits == 2, "阶段来源次数 = 2");
 }
 
-/* ---------------- 统计：非官方改版世界 ---------------- */
+/* ---------------- 统计：房间名与官方不同的世界 ---------------- */
 
-static void test_unofficial_world(void)
+static void test_alt_world(void)
 {
     static const char* script[] = {
-        "2026.09.23 13:28:10 Debug      -  [Behaviour] Entering Room: 男生女生向前冲",
+        "2026.09.23 13:28:10 Debug      -  [Behaviour] Entering Room: Sample Combat World",
         "2026.09.23 13:44:53 Debug      -  Dealing 59 STRIKE damage",
         "2026.09.23 13:45:43 Debug      -  ECLIPTICA - now in stage: Stage_VRCHub on phase: 0.4367217 as class: Thaumaturge",
         "2026.09.23 13:49:09 Debug      -  ECLIPTICA - now fighting boss: Amaziah(Clone) on phase: 0.4367217",
@@ -271,15 +271,24 @@ static void test_unofficial_world(void)
     };
     const int N = (int)(sizeof(script) / sizeof(script[0]));
 
+    /* 未登记房间名时：进房不开局，靠 ECLIPTICA 日志惰性开局 */
+    names_set_world_aliases(NULL);
     stats_init(&g_st);
     feed_all(script, N);
-    CHECK(g_st.in_run && g_st.in_world, "改版世界进入后即开局");
-    CHECK(g_st.stage_no == 1, "改版世界识别到阶段");
+    CHECK(g_st.in_run && g_st.in_world, "未登记的房间名靠 ECLIPTICA 日志开局");
+    CHECK(g_st.stage_no == 1, "识别到阶段");
     CHECK(!strcmp(g_st.stage_disp, "VRChat Hub"), "阶段名映射正确");
-    CHECK(fabs(g_st.run_u.a.dmg - 94) < 0.01, "改版世界伤害累计 = 59+35");
+    CHECK(fabs(g_st.run_u.a.dmg - 94) < 0.01, "伤害累计 = 59+35");
     CHECK(g_st.in_fight, "识别到 Boss 战");
     CHECK(!strcmp(g_st.cur_fight.disp, "Amaziah"), "Boss 名称正确");
     CHECK(g_st.targets_total == 1, "识别到 Boss 目标切换");
+
+    /* 用 world_names 登记后：进房即开局 */
+    names_set_world_aliases("Sample Combat World");
+    stats_init(&g_st);
+    feed_all(script, N);
+    CHECK(g_st.in_run, "登记过房间名后进房即开局");
+    names_set_world_aliases(NULL);
 
     /* 没有房间行（HUD 从日志尾部开始跟随）时也必须能惰性开局 */
     stats_init(&g_st);
@@ -339,9 +348,9 @@ static void test_target_tracking(void)
     CHECK(v.target_is_boss, "识别出该目标是 Boss");
     CHECK(fabs(v.target_secs) < 1e-6, "目标持续时间从切换时刻起算");
 
-    /* 没有 ownership 的世界（非官方改版）：目标为空，界面显示占位符 */
+    /* 没有 ownership 的世界：目标为空，界面显示占位符 */
     stats_init(&g_st);
-    e.type = EV_ROOM_ENTER; strcpy(e.name, "男生女生向前冲"); e.t = 1;
+    e.type = EV_ROOM_ENTER; strcpy(e.name, "Sample Combat World"); e.t = 1;
     stats_on_event(&g_st, &e);
     e.type = EV_BOSS_FIGHT; strcpy(e.name, "DarkMouth"); e.t = 2;
     stats_on_event(&g_st, &e);
@@ -390,6 +399,87 @@ static void test_death_burst(void)
     CHECK(g_st.run_u.a.deaths == 2, "刚有存活证据但静默期未过，仍不计新死亡");
     e.type = EV_PLAYER_DEAD; e.t = 204; stats_on_event(&g_st, &e);
     CHECK(g_st.run_u.a.deaths == 3, "静默期过后再死计为第 3 次");
+}
+
+/* ---------------- 统计：JimBringer 多阶段（真实日志回归） ----------------
+ *
+ * 取自 output_log_2026-09-24_18-20-39.txt：
+ *   19:01:44  ownership of JimBringer       transferred to iccti
+ *   19:04:35  Boss JimBringer dead
+ *   19:04:35  ECLIPTICA - now fighting boss: JimBringerPhase2(Clone)   (回声：JimBringer)
+ *   19:07:19  ownership of JimBringerPhase2 transferred to てぃな xplaTina
+ *   19:12:21  ECLIPTICA - now fighting boss: JimBringerPhase3(Clone)
+ *   19:12:22  Boss JimBringerPhase2 dead     <- 上一形态的击杀行迟到
+ *   19:24:31  Boss JimBringerPhase3 dead
+ */
+static void test_jim_phases(void)
+{
+    static const char* script[] = {
+        "2026.09.24 18:57:37 Debug      -  ECLIPTICA - now in stage: Stage_Bringer on phase: 1 as class: Spellhammer",
+        "2026.09.24 18:58:10 Debug      -  ECLIPTICA - now fighting boss: JimBringer(Clone) on phase: 1",
+        "2026.09.24 19:01:44 Debug      -  ownership of JimBringer transferred to iccti",
+        "2026.09.24 19:04:35 Debug      -  Boss JimBringer dead, personal damage dealt: ",
+        "2026.09.24 19:04:35 Debug      -  ECLIPTICA - now fighting boss: JimBringerPhase2(Clone) on phase: 1",
+        "2026.09.24 19:04:35 Debug      -  ECLIPTICA - now fighting boss: JimBringer(Clone) on phase: 1",
+        "2026.09.24 19:04:36 Debug      -  ECLIPTICA - now fighting boss: JimBringerPhase2(Clone) on phase: 1",
+        "2026.09.24 19:07:19 Debug      -  ownership of JimBringerPhase2 transferred to てぃな xplaTina",
+    };
+    const int N = (int)(sizeof(script) / sizeof(script[0]));
+    Event e;
+    StatsView v;
+
+    stats_init(&g_st);
+    feed_all(script, N);
+
+    /* 二阶段：目标必须是二阶段自己的，而不是一阶段遗留的 iccti */
+    CHECK(g_st.in_fight, "二阶段处于 Boss 战中");
+    CHECK(!strcmp(g_st.cur_fight.name, "JimBringerPhase2"), "二阶段场次名 = JimBringerPhase2");
+    CHECK(g_st.cur_fight.phase_no == 2, "二阶段形态号 = 2");
+    stats_view(&g_st, g_st.last_t, 10, &v);
+    CHECK(v.target && !strcmp(v.target, "てぃな xplaTina"),
+          "二阶段显示二阶段的目标（不是一阶段遗留的 iccti）");
+    CHECK(v.target_is_boss, "该目标被识别为 Boss 目标");
+    CHECK(fabs(v.target_secs) < 1e-6, "目标持续时间自二阶段切换时刻起算");
+
+    /* 三阶段开战：应当是同一只 Boss 的续战 */
+    memset(&e, 0, sizeof(e));
+    e.type = EV_BOSS_FIGHT; strcpy(e.name, "JimBringerPhase3"); e.t = g_st.last_t + 1;
+    stats_on_event(&g_st, &e);
+    CHECK(g_st.in_fight && g_st.cur_fight.phase_no == 3, "三阶段被识别为续战");
+
+    /* 上一形态的击杀行迟到：不能把三阶段结束掉 */
+    memset(&e, 0, sizeof(e));
+    e.type = EV_BOSS_DEAD; strcpy(e.name, "JimBringerPhase2"); e.t = g_st.last_t + 2;
+    CHECK(!stats_on_event(&g_st, &e), "上一形态的迟到击杀行被忽略");
+    CHECK(g_st.in_fight, "三阶段仍在进行中（未被误判为结束）");
+    CHECK(!strcmp(g_st.cur_fight.name, "JimBringerPhase3"), "当前场次仍是 JimBringerPhase3");
+    stats_view(&g_st, g_st.last_t, 10, &v);
+    CHECK(v.boss && v.boss[0], "三阶段仍显示为 Boss 战");
+
+    /* 三阶段自己的击杀行：正常结算 */
+    memset(&e, 0, sizeof(e));
+    e.type = EV_BOSS_DEAD; strcpy(e.name, "JimBringerPhase3"); e.t = g_st.last_t + 3;
+    CHECK(stats_on_event(&g_st, &e), "三阶段击杀行被采纳");
+    CHECK(!g_st.in_fight, "三阶段正常结束");
+    CHECK(g_st.cur_run.n_fights == 2, "一阶段与三阶段各留一条场次记录");
+    CHECK(g_st.cur_run.fights[1].killed == 1, "三阶段记为击杀");
+    CHECK(g_st.cur_run.fights[1].phase_no == 3, "三阶段形态号 = 3");
+
+    /* 续战后优先显示新形态自己的目标，而不是旧形态的残留 */
+    stats_init(&g_st);
+    memset(&e, 0, sizeof(e));
+    e.type = EV_ROOM_ENTER; strcpy(e.name, "Ecliptica"); e.t = 1;
+    stats_on_event(&g_st, &e);
+    e.type = EV_BOSS_FIGHT; strcpy(e.name, "JimBringer"); e.t = 2;
+    stats_on_event(&g_st, &e);
+    e.type = EV_OWNERSHIP; strcpy(e.name, "JimBringer"); strcpy(e.cls, "OldTarget"); e.t = 3;
+    stats_on_event(&g_st, &e);
+    e.type = EV_BOSS_FIGHT; strcpy(e.name, "JimBringerPhase3"); e.t = 4;
+    stats_on_event(&g_st, &e);
+    e.type = EV_OWNERSHIP; strcpy(e.name, "JimBringerPhase3"); strcpy(e.cls, "NewTarget"); e.t = 5;
+    stats_on_event(&g_st, &e);
+    stats_view(&g_st, 5, 10, &v);
+    CHECK(v.target && !strcmp(v.target, "NewTarget"), "续战后显示新形态自己的目标");
 }
 
 /* ---------------- 统计：DPS 窗口 ---------------- */
@@ -578,9 +668,10 @@ int main(int argc, char** argv)
     printf("\n=== 世界识别 ===\n");          test_world_aliases();
     printf("\n=== 格式化 ===\n");            test_format();
     printf("\n=== 统计：完整一局 ===\n");     test_stats_run();
-    printf("\n=== 统计：非官方改版 ===\n");   test_unofficial_world();
+    printf("\n=== 统计：异名世界 ===\n");     test_alt_world();
     printf("\n=== 统计：目标追踪 ===\n");     test_target_tracking();
     printf("\n=== 统计：死亡连刷 ===\n");     test_death_burst();
+    printf("\n=== 统计：Jim 多阶段 ===\n");   test_jim_phases();
     printf("\n=== 统计：DPS 窗口 ===\n");     test_dps_window();
     printf("\n=== 统计：阶段切换 ===\n");     test_stage_switch();
     printf("\n=== 统计：Boss 续战 ===\n");    test_boss_phase_continuation();

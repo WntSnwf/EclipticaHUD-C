@@ -23,8 +23,7 @@ enum HudBtn {
     HUD_BTN_SMALLER,
     HUD_BTN_OPAQUE,
     HUD_BTN_TRANSPARENT,
-    HUD_BTN_WIN_LONGER,
-    HUD_BTN_WIN_SHORTER,
+    HUD_BTN_PIERCE,      /* 鼠标穿透开关（取代原来的 窗短 / 窗长 ）*/
     HUD_BTN_LOG,
     HUD_BTN_CLOSE,
     HUD_BTN_PREV_RUN,
@@ -41,7 +40,7 @@ enum HudBtn {
     HUD_BTN_DRAG
 };
 
-#define HUD_BAR_BTN_N 8
+#define HUD_BAR_BTN_N 7
 
 typedef struct {
     bool log_on;

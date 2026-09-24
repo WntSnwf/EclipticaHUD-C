@@ -76,7 +76,7 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nShow)
     cfg_path_w(ini, MAX_PATH);
     cfg_load(&cfg, ini);
 
-    /* 注册 Ecliptica 系世界名（内置 "ecliptica" / "男生女生向前冲" + 配置追加）*/
+    /* 注册 Ecliptica 系世界名（内置 "ecliptica" + 配置里的 world_names）*/
     names_set_world_aliases(cfg.world_names);
 
     if (logpath[0] && !demo) overlay_use_log(logpath);

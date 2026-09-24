@@ -270,7 +270,7 @@ static bool in_rect(const RECT* r, int x, int y)
 
 static const int BAR_ORDER[HUD_BAR_BTN_N] = {
     HUD_BTN_TOPMOST, HUD_BTN_BIGGER, HUD_BTN_SMALLER, HUD_BTN_OPAQUE,
-    HUD_BTN_TRANSPARENT, HUD_BTN_WIN_LONGER, HUD_BTN_WIN_SHORTER, HUD_BTN_LOG
+    HUD_BTN_TRANSPARENT, HUD_BTN_PIERCE, HUD_BTN_LOG
 };
 
 int hud_hit_test(int x, int y, const HudLayout* L)
@@ -696,8 +696,7 @@ static const char* button_tip(int hover)
     case HUD_BTN_SMALLER:     return TXT_TIP_SMALLER;
     case HUD_BTN_OPAQUE:      return TXT_TIP_OPAQUE;
     case HUD_BTN_TRANSPARENT: return TXT_TIP_FADED;
-    case HUD_BTN_WIN_LONGER:  return TXT_TIP_WIN_LONG;
-    case HUD_BTN_WIN_SHORTER: return TXT_TIP_WIN_SHORT;
+    case HUD_BTN_PIERCE:      return TXT_TIP_PIERCE;
     case HUD_BTN_LOG:         return TXT_TIP_LOG;
     case HUD_BTN_CLOSE:       return TXT_TIP_CLOSE;
     case HUD_BTN_PREV_RUN:    return TXT_TIP_PREV_RUN;
@@ -741,6 +740,9 @@ void hud_paint(HDC dc, const HudLayout* L, const Config* cfg, const StatsView* v
         text_l(dc, PAD + 13, 4, g_f_title, C_TEXT, TXT_APP_TITLE);
         int tw = text_w(dc, g_f_title, TXT_APP_TITLE);
         text_l(dc, PAD + 19 + tw, 7, g_f_small, C_FAINT, TXT_APP_SUB);
+        /* 鼠标穿透开启时窗口收不到任何鼠标事件，必须在标题栏常驻提示怎么恢复 */
+        if (cfg->click_through)
+            text_r(dc, L->close_btn.left - 8, 7, g_f_small, C_GOLD, TXT_PIERCE_BADGE);
         draw_button(dc, &L->close_btn, TXT_BTN_CLOSE, false,
                     hover_btn == HUD_BTN_CLOSE, g_f_body);
     }
@@ -752,12 +754,13 @@ void hud_paint(HDC dc, const HudLayout* L, const Config* cfg, const StatsView* v
     {
         static const char* labels[HUD_BAR_BTN_N] = {
             TXT_BTN_TOP, TXT_BTN_BIGGER, TXT_BTN_SMALLER, TXT_BTN_OPAQUE,
-            TXT_BTN_FADED, TXT_BTN_WIN_SHORT, TXT_BTN_WIN_LONG, TXT_BTN_LOG
+            TXT_BTN_FADED, TXT_BTN_PIERCE, TXT_BTN_LOG
         };
         for (int i = 0; i < HUD_BAR_BTN_N; i++) {
             bool active = false;
             if (BAR_ORDER[i] == HUD_BTN_TOPMOST) active = cfg->always_on_top;
             if (BAR_ORDER[i] == HUD_BTN_LOG) active = cfg->show_event_log;
+            if (BAR_ORDER[i] == HUD_BTN_PIERCE) active = cfg->click_through;
             draw_button(dc, &L->bar_btn[i], labels[i], active,
                         hover_btn == BAR_ORDER[i], g_f_body);
         }

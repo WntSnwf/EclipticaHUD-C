@@ -1,0 +1,51 @@
+2026.09.23 13:28:10 Debug      -  [Behaviour] Entering Room: Sample Combat World
+2026.09.23 13:28:10 Debug      -  [Behaviour] Joining wrld_a9d97ea0-a274-456c-8dfb-0d8175e5f759:28405~hidden(usr_47c6d8f2-727a-41a6-a87c-c564d25eba4c)~region(jp)
+2026.09.23 13:43:35 Debug      -  ECLIPTICA Loading Settings...
+2026.09.23 13:43:35 Debug      -  ECLIPTICA loaded SESSION ID 32372
+2026.09.23 13:43:40 Debug      -  ownership of EnemyController transferred to めるくす
+2026.09.23 13:43:40 Debug      -  ownership of EnemyController (1) transferred to めるくす
+2026.09.23 13:43:40 Debug      -  ownership of EnemyController (2) transferred to めるくす
+2026.09.23 13:45:43 Debug      -  spawn token, False, 0
+2026.09.23 13:45:43 Debug      -  spawn token, True, 55
+2026.09.23 13:45:43 Debug      -  ECLIPTICA - now in stage: Stage_ProtoColony on phase: 0.1228879 as class: Nekomancer
+2026.09.23 13:45:44 Debug      -  ECLIPTICA saving SESSION ID 30159
+2026.09.23 13:46:09 Debug      -  ownership of Ice Squid transferred to zukkiii
+2026.09.23 13:46:09 Debug      -  ownership of Lizord transferred to 真白 冬雪
+2026.09.23 13:46:11 Debug      -  ownership of LavaSac transferred to かえで
+2026.09.23 13:46:21 Debug      -  ownership of Manalyte transferred to niwakaakini
+2026.09.23 13:46:36 Debug      -  ownership of Peltapod transferred to 真白 冬雪
+2026.09.23 13:46:39 Debug      -  ownership of Carnie transferred to zukkiii
+2026.09.23 13:46:51 Debug      -  ownership of Roboorb transferred to かえで
+2026.09.23 13:47:47 Debug      -  ownership of Token4 transferred to GATIACME
+2026.09.23 13:47:52 Debug      -  ownership of Big Robot transferred to かえで
+2026.09.23 13:47:57 Debug      -  Dealing 69 STRIKE damage
+2026.09.23 13:48:00 Debug      -  Dealing 69 STRIKE damage
+2026.09.23 13:48:06 Debug      -  Dealing 63 NON-STRIKE damage
+2026.09.23 13:48:10 Debug      -  Dealing 69 STRIKE damage
+2026.09.23 13:49:09 Debug      -  ECLIPTICA - now fighting boss: Amaziah(Clone) on phase: 0.4367217
+2026.09.23 13:49:18 Debug      -  ownership of Amaziah transferred to かえで
+2026.09.23 13:49:21 Debug      -  Dealing 35 STRIKE damage
+2026.09.23 13:49:29 Debug      -  Dealing 35 STRIKE damage
+2026.09.23 13:49:37 Debug      -  Dealing 32 NON-STRIKE damage
+2026.09.23 13:49:45 Debug      -  Dealing 35 STRIKE damage
+2026.09.23 13:49:45 Debug      -  ownership of Amaziah transferred to niwakaakini
+2026.09.23 13:50:00 Debug      -  damage has been taken: 29, from source: kickProject
+2026.09.23 13:50:06 Debug      -  Dealing 35 STRIKE damage
+2026.09.23 13:50:21 Debug      -  ownership of Amaziah transferred to めるくす
+2026.09.23 13:50:27 Debug      -  Dealing 35 STRIKE damage
+2026.09.23 13:50:28 Debug      -  Dealing 32 NON-STRIKE damage
+2026.09.23 13:50:44 Debug      -  Dealing 35 STRIKE damage
+2026.09.23 13:50:55 Debug      -  Dealing 35 STRIKE damage
+2026.09.23 13:51:01 Debug      -  ownership of Amaziah transferred to GATIACME
+2026.09.23 13:51:08 Debug      -  Dealing 35 STRIKE damage
+2026.09.23 13:51:15 Debug      -  Dealing 35 STRIKE damage
+2026.09.23 13:51:22 Debug      -  Dealing 35 STRIKE damage
+2026.09.23 13:51:30 Debug      -  Dealing 35 STRIKE damage
+2026.09.23 13:51:37 Debug      -  Dealing 41 STRIKE damage
+2026.09.23 13:51:44 Debug      -  damage has been taken: 41, from source: (Too Tired) spinAttack
+2026.09.23 13:51:50 Debug      -  Dealing 35 STRIKE damage
+2026.09.23 13:51:58 Debug      -  Dealing 35 STRIKE damage
+2026.09.23 13:52:05 Debug      -  Dealing 35 STRIKE damage
+2026.09.23 13:52:12 Debug      -  Dealing 32 NON-STRIKE damage
+2026.09.23 13:52:19 Debug      -  Dealing 35 STRIKE damage
+2026.09.23 13:52:31 Debug      -  Dealing 35 STRIKE damage

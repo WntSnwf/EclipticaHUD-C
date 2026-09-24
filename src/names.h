@@ -30,10 +30,10 @@ int boss_phase_no(const char* name);
 int is_player_summon(const char* name);
 
 /* ---- Ecliptica 系世界识别 ----
- * 官方世界名是 "Ecliptica …"，但存在非官方改版（例如 "男生女生向前冲"）：
- * 它们复用同一套 Udon 脚本，战斗日志的 "ECLIPTICA …" 前缀完全一致，
- * 只有房间名不同。内置别名 "ecliptica" 与 "男生女生向前冲"，
- * 可用 names_set_world_aliases() 追加（config.ini 的 world_names，用 | 或 , 分隔）。 */
+ * 内置别名只有官方世界名 "ecliptica"。若要按房间名识别其它同系世界，
+ * 可用 names_set_world_aliases() 登记（对应 config.ini 的 world_names，
+ * 用 | 或 , 分隔）；即使完全没登记，只要日志里出现 ECLIPTICA 系事件，
+ * 统计层也会惰性开局。 */
 void names_set_world_aliases(const char* extra);
 bool names_is_ecl_world(const char* room_name);
 

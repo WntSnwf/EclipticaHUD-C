@@ -10,8 +10,7 @@
 #define TXT_BTN_SMALLER  "缩小"
 #define TXT_BTN_OPAQUE   "变浓"
 #define TXT_BTN_FADED    "变淡"
-#define TXT_BTN_WIN_LONG "窗长"
-#define TXT_BTN_WIN_SHORT "窗短"
+#define TXT_BTN_PIERCE   "穿透"
 #define TXT_BTN_LOG      "日志"
 #define TXT_BTN_CLOSE    "✕"
 
@@ -21,8 +20,7 @@
 #define TXT_TIP_SMALLER  "缩小界面"
 #define TXT_TIP_OPAQUE   "提高不透明度"
 #define TXT_TIP_FADED    "降低不透明度"
-#define TXT_TIP_WIN_LONG "加长 DPS 统计窗口"
-#define TXT_TIP_WIN_SHORT "缩短 DPS 统计窗口"
+#define TXT_TIP_PIERCE   "开启/关闭鼠标穿透（Ctrl+Alt+T），开启后点击会落到下面的窗口"
 #define TXT_TIP_LOG      "显示/隐藏事件日志"
 #define TXT_TIP_CLOSE    "关闭 HUD（Ctrl+Alt+Q）"
 #define TXT_TIP_PREV_RUN   "上一局"
@@ -93,6 +91,7 @@
 #define TXT_SCROLL_HINT  "滚轮翻看"
 
 /* 状态栏 */
+#define TXT_PIERCE_BADGE "鼠标穿透中 · Ctrl+Alt+T 恢复"
 #define TXT_LOG_MISSING  "未找到 VRChat 日志"
 #define TXT_LOG_FILE_MISSING "打不开 --log 指定的文件"
 #define TXT_WAIT_JOIN    "等待进入 Ecliptica"

@@ -23,8 +23,9 @@
 #include <string.h>
 #include <wchar.h>
 
-#define TIMER_POLL   100
-#define HOTKEY_QUIT  1
+#define TIMER_POLL    100
+#define HOTKEY_QUIT   1
+#define HOTKEY_PIERCE 2
 
 /* 老版 MinGW 头文件缺少这些定义 */
 #ifndef MOD_NOREPEAT
@@ -32,6 +33,9 @@
 #endif
 #ifndef WM_DPICHANGED
 #define WM_DPICHANGED 0x02E0
+#endif
+#ifndef HTTRANSPARENT
+#define HTTRANSPARENT (-1)
 #endif
 #define HOTKEY_ID_MOD (MOD_CONTROL | MOD_ALT | MOD_NOREPEAT)
 
@@ -190,6 +194,25 @@ static void apply_alpha(void)
     SetLayeredWindowAttributes(g_hwnd, 0, (BYTE)g_cfg->alpha, LWA_ALPHA);
 }
 
+/* 鼠标穿透：分层窗口加上 WS_EX_TRANSPARENT 后，命中测试会直接落到下面的窗口，
+ * 本窗口再也收不到鼠标消息（因此必须靠 Ctrl+Alt+T 关回来）。
+ * 同时用 WM_NCHITTEST 返回 HTTRANSPARENT 兜底，两条路都堵死。 */
+static void apply_click_through(void)
+{
+    LONG_PTR ex = GetWindowLongPtrW(g_hwnd, GWL_EXSTYLE);
+    LONG_PTR want = g_cfg->click_through ? (ex | WS_EX_TRANSPARENT)
+                                         : (ex & ~(LONG_PTR)WS_EX_TRANSPARENT);
+    if (want != ex) {
+        SetWindowLongPtrW(g_hwnd, GWL_EXSTYLE, want);
+        SetWindowPos(g_hwnd, NULL, 0, 0, 0, 0,
+                     SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED);
+    }
+    if (g_cfg->click_through) {
+        /* 光标不在窗口上时悬停状态要清掉，否则按钮会一直亮着 */
+        g_hover = HUD_BTN_NONE;
+    }
+}
+
 static void apply_scale(void)
 {
     g_w = scaled_px(HUD_BASE_W);
@@ -311,18 +334,10 @@ static void on_button(int btn)
             apply_alpha();
         }
         break;
-    case HUD_BTN_WIN_LONGER: {
-        static const int wins[] = { 3, 5, 10, 30, 60, 120 };
-        for (int i = 0; i < 5; i++)
-            if (wins[i] == g_cfg->stat_window) { g_cfg->stat_window = wins[i + 1]; break; }
+    case HUD_BTN_PIERCE:
+        g_cfg->click_through = !g_cfg->click_through;
+        apply_click_through();
         break;
-    }
-    case HUD_BTN_WIN_SHORTER: {
-        static const int wins[] = { 3, 5, 10, 30, 60, 120 };
-        for (int i = 1; i < 6; i++)
-            if (wins[i] == g_cfg->stat_window) { g_cfg->stat_window = wins[i - 1]; break; }
-        break;
-    }
     case HUD_BTN_LOG:
         g_cfg->show_event_log = !g_cfg->show_event_log;
         g_log_scroll = 0;
@@ -425,6 +440,11 @@ static LRESULT CALLBACK wnd_proc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
         }
         return 0;
 
+    case WM_NCHITTEST:
+        /* 双保险：即使 WS_EX_TRANSPARENT 没生效，也把命中测试让给下层窗口 */
+        if (g_cfg && g_cfg->click_through) return HTTRANSPARENT;
+        break;
+
     case WM_LBUTTONDOWN: {
         int lx, ly;
         to_logical(GET_X_LPARAM(lp), GET_Y_LPARAM(lp), &lx, &ly);
@@ -499,6 +519,12 @@ static LRESULT CALLBACK wnd_proc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
 
     case WM_HOTKEY:
         if (wp == HOTKEY_QUIT) PostMessageW(hwnd, WM_CLOSE, 0, 0);
+        else if (wp == HOTKEY_PIERCE) {
+            /* 穿透后窗口收不到鼠标消息，只能靠这个热键关回来 */
+            g_cfg->click_through = !g_cfg->click_through;
+            apply_click_through();
+            InvalidateRect(hwnd, NULL, FALSE);
+        }
         return 0;
 
     case WM_DESTROY:
@@ -506,6 +532,7 @@ static LRESULT CALLBACK wnd_proc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
         GetWindowRect(hwnd, &g_last_rect);
         KillTimer(hwnd, 1);
         UnregisterHotKey(hwnd, HOTKEY_QUIT);
+        UnregisterHotKey(hwnd, HOTKEY_PIERCE);
         PostQuitMessage(0);
         return 0;
     }
@@ -564,6 +591,8 @@ void overlay_run(Config* cfg, bool demo, bool from_start)
     }
     apply_alpha();
     RegisterHotKey(g_hwnd, HOTKEY_QUIT, HOTKEY_ID_MOD, 'Q');
+    RegisterHotKey(g_hwnd, HOTKEY_PIERCE, HOTKEY_ID_MOD, 'T');
+    apply_click_through();          /* 恢复上次退出时的穿透状态 */
 
     ShowWindow(g_hwnd, SW_SHOWNOACTIVATE);
     UpdateWindow(g_hwnd);

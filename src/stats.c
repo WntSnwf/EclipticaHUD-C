@@ -190,18 +190,29 @@ static int target_slot(Stats* s, const char* obj)
     return STATS_MAX_TARGETS - 1;
 }
 
-/* 常量版本：按对象名查归属（比较时忽略 Boss 的 Phase / Clone 后缀）*/
+/* 常量版本：按对象名查归属。
+ *
+ * 必须**先精确匹配对象名**再退回基础名匹配：JimBringer 的各个形态会以
+ * JimBringer / JimBringerPhase2 / JimBringerPhase3 三个不同对象名出现，
+ * 基础名都是 JimBringer。若直接按基础名取第一个命中，二阶段就会一直显示
+ * 一阶段遗留的目标。
+ * 基础名兜底时取"最近一次变化"的那条，避免再次拿到过期数据。 */
 static const TargetSlot* target_find_const(const Stats* s, const char* obj)
 {
     char base[64];
     boss_base(obj, base, sizeof(base));
+
+    for (int i = 0; i < s->n_targets; i++)
+        if (!strcmp(s->targets[i].obj, obj)) return &s->targets[i];
+
+    const TargetSlot* best = NULL;
     for (int i = 0; i < s->n_targets; i++) {
         char b2[64];
         boss_base(s->targets[i].obj, b2, sizeof(b2));
-        if (!strcmp(s->targets[i].obj, obj) || !strcmp(b2, base))
-            return &s->targets[i];
+        if (strcmp(b2, base)) continue;
+        if (!best || s->targets[i].t > best->t) best = &s->targets[i];
     }
-    return NULL;
+    return best;
 }
 
 /* 记录一次"还活着"的证据（攻击 / 受伤 / 换阶段 / 开 Boss 战 / 出现印记）*/
@@ -305,9 +316,9 @@ static void seal_run(Stats* s, double t, const char* result)
 
 /* ---------------- 事件处理 ---------------- */
 
-/* 惰性开局：非官方改版（如"男生女生向前冲"）的房间名与官方不同，无法靠
- * 房间名判断，但只要出现了 ECLIPTICA 系战斗日志，就说明确实在 Ecliptica
- * 系世界里——此时补开一局。这样任何换皮版本都能直接工作。 */
+/* 惰性开局：房间名可能与官方不同，也可能压根没看到房间行（HUD 从日志尾部
+ * 才开始跟随）。只要出现了 ECLIPTICA 系战斗日志，就说明确实在该世界里，
+ * 此时补开一局。 */
 static void ensure_run(Stats* s, double t)
 {
     if (s->in_run) return;
@@ -412,16 +423,24 @@ bool stats_on_event(Stats* s, const Event* e)
     }
 
     case EV_BOSS_DEAD:
-        if (s->in_fight) {
+        if (!s->in_fight) return false;
+        {
             char a[64], b[64];
             boss_base(s->cur_fight.name, a, sizeof(a));
             boss_base(e->name, b, sizeof(b));
-            if (strcmp(a, b)) return false;
+            if (strcmp(a, b)) return false;              /* 不是当前这一只 */
+            /* 基础名相同但形态不同：只可能是**上一形态的击杀行迟到**。
+             * 真实日志里 JimBringerPhase3 在 19:12:21 开战，19:12:22 才吐出
+             * "Boss JimBringerPhase2 dead"，若只比较基础名就会把三阶段当场结束，
+             * 于是三阶段被当成"当前没有 Boss 战"。这里要求名字完全一致，
+             * 或形态号一致，才认为打的是当前这一场。*/
+            if (strcmp(s->cur_fight.name, e->name) != 0 &&
+                boss_phase_no(e->name) != s->cur_fight.phase_no)
+                return false;
+
             s->cur_fight.kill_strike = 0;
             s->cur_fight.kill_nonstrike = 0;
             seal_fight(s, t, true, false);
-        } else {
-            return false;
         }
         break;
 
@@ -507,6 +526,7 @@ bool stats_on_event(Stats* s, const Event* e)
         int idx = target_slot(s, obj);
         if (!strcmp(s->targets[idx].player, e->cls)) return false;   /* 目标没变 */
         copy_str(s->targets[idx].player, sizeof(s->targets[idx].player), e->cls);
+        s->targets[idx].t = t;
 
         s->targets_total++;
         copy_str(s->target_obj, sizeof(s->target_obj), obj);
@@ -592,8 +612,8 @@ void stats_view(const Stats* s, double now, double win, StatsView* v)
             v->target = ts->player;
             v->target_obj = ts->obj;
             v->target_is_boss = true;
-            v->target_secs = (s->target_since > 0 && !strcmp(s->target_obj, ts->obj))
-                             ? now - s->target_since : 0;
+            v->target_secs = ts->t > 0 ? now - ts->t : 0;   /* 该目标已锁定多久 */
+            if (v->target_secs < 0) v->target_secs = 0;
         }
     }
 

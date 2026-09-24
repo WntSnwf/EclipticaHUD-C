@@ -178,8 +178,7 @@ static bool ci_contains(const char* hay, const char* needle)
 void names_set_world_aliases(const char* extra)
 {
     g_alias_n = 0;
-    alias_add("ecliptica");              /* 官方世界 */
-    alias_add("男生女生向前冲");           /* 非官方改版（日志前缀同样是 ECLIPTICA） */
+    alias_add("ecliptica");              /* 官方世界名 */
 
     if (extra && *extra) {
         char buf[192];

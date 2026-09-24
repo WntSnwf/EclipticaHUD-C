@@ -34,8 +34,9 @@ typedef struct {
 
 /* 某个敌方单位最近一次已知的归属（"ownership of X transferred to Y"）*/
 typedef struct {
-    char obj[48];
-    char player[48];
+    char   obj[48];
+    char   player[48];
+    double t;          /* 该归属最后一次变化的时间 */
 } TargetSlot;
 
 /* 伤害/来源聚合条目 */
