@@ -316,6 +316,37 @@ static void seal_run(Stats* s, double t, const char* result)
 
 /* ---------------- 事件处理 ---------------- */
 
+/* 团灭：全队阵亡后会被送回初始大厅从头再来，本局数据必须清零。
+ *
+ * 判据（两条都取自真实日志）：
+ *   1) **Boss 还没死就进了间歇期** —— 战斗不是靠击杀结束的，那就是打输了。
+ *      正常流程一定是 "Boss X dead" 先把战斗收尾，再 "now in intermission"，
+ *      所以此时 in_fight 仍为真就说明这一场没打赢。
+ *   2) **已经打过至少一个阶段，又冒出 Stage_Hall of Beginnings** —— 被送回初始大厅。
+ *      实测 output_log_2026-09-21_15-24-01 的阶段序列是
+ *      GMBigcity | Bringer | **Hall of Beginnings** | GMFuncFlat | ...，
+ *      初始大厅出现在第 3 个阶段而不是开头，正是团灭重开。
+ *
+ * 处理：把这一局按"失败"收尾（保留在历史里，可用底部 ◀ ▶ 回看），
+ * 然后立刻开一局新的，三级统计与阶段号全部归零。 */
+static void wipe_run(Stats* s, double t)
+{
+    if (s->in_fight) seal_fight(s, t, false, true);
+    if (s->in_stage) seal_stage(s, t);
+    s->in_stage = false;
+    s->in_fight = false;
+    if (!s->in_run) return;
+    seal_run(s, t, "LOST");
+    open_run(s, t);
+    s->in_world = true;
+}
+
+/* 是否是初始大厅那个阶段（团灭后会被送回这里）*/
+static bool is_hall_of_beginnings(const char* stage_name)
+{
+    return stage_name && strstr(stage_name, "Hall of Beginnings") != NULL;
+}
+
 /* 惰性开局：房间名可能与官方不同，也可能压根没看到房间行（HUD 从日志尾部
  * 才开始跟随）。只要出现了 ECLIPTICA 系战斗日志，就说明确实在该世界里，
  * 此时补开一局。 */
@@ -372,6 +403,10 @@ bool stats_on_event(Stats* s, const Event* e)
         ensure_run(s, t);
         mark_alive(s, t);
         bool same = s->in_stage && !strcmp(s->stage, e->name);
+        /* 已经打过至少一个阶段，又回到初始大厅 = 团灭重开。
+         * 必须排除"同一条阶段行重复上报"（日志里很常见），否则回声也会被当成团灭。*/
+        if (!same && s->stage_no >= 1 && is_hall_of_beginnings(e->name))
+            wipe_run(s, t);
         if (!same) {
             if (s->in_fight) seal_fight(s, t, false, true);
             if (s->in_stage) seal_stage(s, t);
@@ -392,8 +427,9 @@ bool stats_on_event(Stats* s, const Event* e)
     }
 
     case EV_INTERMISSION:
-        if (s->in_fight) seal_fight(s, t, false, true);
-        if (s->in_stage) seal_stage(s, t);
+        /* Boss 没死就进间歇期 = 团灭：本局要清零重来 */
+        if (s->in_fight) wipe_run(s, t);
+        else if (s->in_stage) seal_stage(s, t);
         s->intermission = true;
         break;
 
@@ -459,6 +495,9 @@ bool stats_on_event(Stats* s, const Event* e)
     case EV_DEALT:
         ensure_run(s, t);
         mark_alive(s, t);
+        /* 间歇期里唯一能打的是练习木桩（实测固定每次 30 点，刷屏式输出 20 多次）。
+         * 那不是战斗伤害，三级统计都不该收 —— 否则本局伤害会凭空多出几百点。*/
+        if (s->intermission) return false;
         unit_add_dealt(&s->run_u, t, e->amount);
         if (s->in_fight) unit_add_dealt(&s->fight_u, t, e->amount);
         else if (s->in_stage) unit_add_dealt(&s->stage_u, t, e->amount);
@@ -599,13 +638,13 @@ void stats_view(const Stats* s, double now, double win, StatsView* v)
     v->tokens = s->run_u.a.tokens;
     v->level_tokens = s->level_tokens;
     v->stage_tokens = s->stage_u.a.tokens;
-    /* 目标显示：优先当前 Boss 的目标，其次最近一次目标切换 */
-    if (s->target_player[0]) {
-        v->target = s->target_player;
-        v->target_obj = s->target_obj;
-        v->target_secs = now - s->target_since;
-        v->target_is_boss = is_known_boss(s, s->target_obj);
-    }
+    /* 目标显示：
+     *   战斗中 -> 只认这只 Boss 自己的归属；
+     *   非战斗 -> 汇报最近一次目标切换（覆盖杂兵/召唤物/道具）。
+     * 战斗中**不再**回落到"任意对象的最近一次切换"：日志里有些 Boss
+     * （实测 FlyLord）开战后要 57 秒才吐出第一条 ownership，旧的写法会拿
+     * 上一阶段的敌人冒充本场目标，看上去就是"最初仇恨目标识别不出来"。
+     * 查不到就老老实实显示 — 。 */
     if (s->in_fight) {
         const TargetSlot* ts = target_find_const(s, s->cur_fight.name);
         if (ts && ts->player[0]) {
@@ -615,6 +654,11 @@ void stats_view(const Stats* s, double now, double win, StatsView* v)
             v->target_secs = ts->t > 0 ? now - ts->t : 0;   /* 该目标已锁定多久 */
             if (v->target_secs < 0) v->target_secs = 0;
         }
+    } else if (s->target_player[0]) {
+        v->target = s->target_player;
+        v->target_obj = s->target_obj;
+        v->target_secs = now - s->target_since;
+        v->target_is_boss = is_known_boss(s, s->target_obj);
     }
 
     if (s->in_fight && s->cur_fight.n_attacks > 0) {
