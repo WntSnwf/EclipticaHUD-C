@@ -66,13 +66,19 @@ static double unit_tps(const Unit* u, double now, double win)
     return unit_rate(u, u->took, u->tn, u->th, now, win);
 }
 
-/* 累加 (who, attack) 分布；表满时淘汰总量最小的条目 */
-static void tally_add(Tally* list, int* n, const char* who, const char* attack, double amount)
+/* 累加 (who, attack) 分布；表满时淘汰总量最小的条目。
+ *
+ * n_hits 是这一笔贡献的**命中次数**：逐条累加时传 1，
+ * 跨阶段/跨场次汇总时传原始命中数。只传 total 会让汇总后的次数退化成
+ * "条目数"，界面上按"单次伤害 x 次数"展示时就会算错。*/
+static void tally_add(Tally* list, int* n, const char* who, const char* attack,
+                      double amount, int n_hits)
 {
+    if (n_hits < 1) n_hits = 1;
     for (int i = 0; i < *n; i++) {
         if (!strcmp(list[i].who, who) && !strcmp(list[i].attack, attack)) {
             list[i].total += amount;
-            list[i].hits++;
+            list[i].hits += n_hits;
             return;
         }
     }
@@ -85,7 +91,7 @@ static void tally_add(Tally* list, int* n, const char* who, const char* attack, 
             if (list[i].total < list[min_i].total) min_i = i;
         if (list[min_i].total >= amount) {
             list[min_i].total += amount;
-            list[min_i].hits++;
+            list[min_i].hits += n_hits;
             return;
         }
         slot = min_i;
@@ -95,7 +101,7 @@ static void tally_add(Tally* list, int* n, const char* who, const char* attack, 
     strncpy(t->who, who, sizeof(t->who) - 1);
     strncpy(t->attack, attack, sizeof(t->attack) - 1);
     t->total = amount;
-    t->hits = 1;
+    t->hits = n_hits;
 }
 
 static void copy_str(char* dst, int cap, const char* src)
@@ -512,8 +518,8 @@ bool stats_on_event(Stats* s, const Event* e)
 
         char who[32], atk[32];
         source_display(e->name, who, sizeof(who), atk, sizeof(atk));
-        if (s->in_fight) tally_add(s->cur_fight.attacks, &s->cur_fight.n_attacks, who, atk, e->amount);
-        else if (s->in_stage) tally_add(s->cur_stage.attacks, &s->cur_stage.n_attacks, who, atk, e->amount);
+        if (s->in_fight) tally_add(s->cur_fight.attacks, &s->cur_fight.n_attacks, who, atk, e->amount, 1);
+        else if (s->in_stage) tally_add(s->cur_stage.attacks, &s->cur_stage.n_attacks, who, atk, e->amount, 1);
         break;
     }
 
@@ -582,17 +588,22 @@ bool stats_on_event(Stats* s, const Event* e)
 
 /* ---------------- 视图 ---------------- */
 
-/* 把一局里所有阶段 + 所有 Boss 战的伤害来源合并 */
+/* 把一局里所有阶段 + 所有 Boss 战的伤害来源合并。
+ * 必须把原始 hits 一起带过去，否则汇总后的次数会退化成"条目数"。*/
 static void merge_run_attacks(const Run* r, Tally* out, int* n)
 {
     for (int i = 0; i < r->n_stages; i++)
         for (int j = 0; j < r->stages[i].n_attacks; j++)
             tally_add(out, n, r->stages[i].attacks[j].who,
-                      r->stages[i].attacks[j].attack, r->stages[i].attacks[j].total);
+                      r->stages[i].attacks[j].attack,
+                      r->stages[i].attacks[j].total,
+                      r->stages[i].attacks[j].hits);
     for (int i = 0; i < r->n_fights; i++)
         for (int j = 0; j < r->fights[i].n_attacks; j++)
             tally_add(out, n, r->fights[i].attacks[j].who,
-                      r->fights[i].attacks[j].attack, r->fights[i].attacks[j].total);
+                      r->fights[i].attacks[j].attack,
+                      r->fights[i].attacks[j].total,
+                      r->fights[i].attacks[j].hits);
 }
 
 void stats_view(const Stats* s, double now, double win, StatsView* v)

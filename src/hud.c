@@ -583,7 +583,12 @@ static void draw_breakdown(HDC dc, const HudLayout* L, const StatsView* v)
         int y = L->bd_row_y + i * L->bd_row_h;
 
         char amt[40], hits[24], who[128];
-        fmt_amount(amt, sizeof(amt), t->total);
+        /* 显示**单次伤害**而不是累计伤害：像 DoT / 连射这类同源多段命中，
+         * 累计值配 "xN" 会被读成"N 点打了 N 次"（实测 `enemy · hit` 累计 20、
+         * 命中 20 次，显示 "20 x20" 极易误解成每次 20）。改成单次值后
+         * "单次 x N" 自洽，累计值也能一眼乘出来。*/
+        double per = t->hits > 0 ? t->total / t->hits : t->total;
+        fmt_amount(amt, sizeof(amt), per);
         snprintf_(hits, sizeof(hits), "x%d", t->hits);
         if (t->attack[0]) snprintf_(who, sizeof(who), "%s · %s", t->who, t->attack);
         else snprintf_(who, sizeof(who), "%s", t->who);
