@@ -29,6 +29,17 @@ int boss_phase_no(const char* name);
 /* 是否为玩家召唤物（Neko1 / Neko2 …），用于区分敌人与召唤物 */
 int is_player_summon(const char* name);
 
+/* ---- 过长的玩家名 ----
+ * 按 UTF-8 字符数统计（不是字节数）。
+ * names_shorten()：字符数 <= 10 原样写入；否则只留前 5 个字符再加一个 "…"。
+ * 必须按字符边界截：日志里出现过 14 个日文/中文字符的玩家名（42 字节），
+ * 而 Event.cls 只有 32 字节，按字节硬截会切在多字节字符中间，产生非法
+ * UTF-8 —— 目标栏和事件日志会显示成乱码方块，长度也失控。 */
+int  names_utf8_len(const char* s);
+void names_shorten(const char* src, char* dst, int cap);
+
+/* 额外的 Ecliptica 系世界名别名 */
+
 /* ---- Ecliptica 系世界识别 ----
  * 内置别名只有官方世界名 "ecliptica"。若要按房间名识别其它同系世界，
  * 可用 names_set_world_aliases() 登记（对应 config.ini 的 world_names，

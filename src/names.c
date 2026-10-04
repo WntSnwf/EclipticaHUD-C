@@ -264,6 +264,58 @@ static void prettify(const char* s, char* out, int cap)
     out[oi] = 0;
 }
 
+/* ---------------- 过长的玩家名 ---------------- */
+
+/* 名字超过这个字符数就截断 */
+#define NAME_SHORTEN_OVER 10
+/* 截断后保留的字符数 */
+#define NAME_KEEP_CHARS   5
+
+/* 从 s[i] 跳到下一个 UTF-8 字符的起始位置。
+ * 遇到不合法的序列只前进 1 字节，保证不会死循环。 */
+static size_t utf8_next(const char* s, size_t i)
+{
+    unsigned char c = (unsigned char)s[i];
+    int len = 1;
+    if      (c < 0x80)           len = 1;
+    else if ((c & 0xE0) == 0xC0) len = 2;
+    else if ((c & 0xF0) == 0xE0) len = 3;
+    else if ((c & 0xF8) == 0xF0) len = 4;
+    for (int k = 1; k < len; k++) {
+        if (((unsigned char)s[i + k] & 0xC0) != 0x80) { len = 1; break; }
+    }
+    return i + (size_t)len;
+}
+
+int names_utf8_len(const char* s)
+{
+    if (!s) return 0;
+    int n = 0;
+    for (size_t i = 0; s[i]; i = utf8_next(s, i)) n++;
+    return n;
+}
+
+void names_shorten(const char* src, char* dst, int cap)
+{
+    if (cap <= 0) return;
+    dst[0] = 0;
+    if (!src) return;
+
+    if (names_utf8_len(src) <= NAME_SHORTEN_OVER) {
+        snprintf_(dst, (size_t)cap, "%s", src);
+        return;
+    }
+
+    /* "…" 占 3 字节，再加结尾 NUL，所以至少要留 4 字节 */
+    size_t cut = 0;
+    for (int k = 0; k < NAME_KEEP_CHARS && src[cut]; k++) cut = utf8_next(src, cut);
+    while (cut > 0 && (int)cut + 4 > cap) cut--;      /* 逐字节回退，cut 始终在字符边界上 */
+    if ((int)cut + 4 > cap) return;                   /* 缓冲区太小，放弃 */
+    memcpy(dst, src, cut);
+    dst[cut] = 0;
+    snprintf_(dst + cut, (size_t)(cap - (int)cut), "%s", "…");
+}
+
 void source_display(const char* source, char* who, int who_cap, char* attack, int atk_cap)
 {
     if (atk_cap <= 0) return;

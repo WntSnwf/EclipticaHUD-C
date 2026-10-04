@@ -66,6 +66,8 @@
 #define TXT_TARGET_LBL   "目标 %s"
 #define TXT_TARGET_FOR   "目标 %s %s"
 #define TXT_TARGET_OF    "%s → %s  %s"
+/* 目标行拆成多段绘制时的前缀：对象名 + 箭头（后面接玩家名、再接时长）*/
+#define TXT_TARGET_OF_LBL "%s → "
 #define TXT_TARGET_NONE  "目标 —"
 
 /* 伤害来源 */

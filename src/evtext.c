@@ -53,9 +53,13 @@ void evtext_push(EvLog* ev, const Stats* st, const Event* e)
         fmt_amount(n2, sizeof(n2), e->amount);
         evlog_push(ev, e->t, EVK_TOKEN, TXT_EV_TOKEN, n2);
         break;
-    case EV_OWNERSHIP:
-        evlog_push(ev, e->t, EVK_TARGET, TXT_EV_TARGET, e->name, e->cls);
+    case EV_OWNERSHIP: {
+        /* 玩家名过长时收成"前 5 字…"：长名字会把整行撑爆、挤掉后面的内容 */
+        char who[96];
+        names_shorten(e->cls, who, sizeof(who));
+        evlog_push(ev, e->t, EVK_TARGET, TXT_EV_TARGET, e->name, who);
         break;
+    }
     case EV_SESSION_SAVE:
         if (st->level_tokens > 0 && st->stage_u.a.tokens <= st->level_tokens)
             evlog_push(ev, e->t, EVK_TOKEN, "%s", TXT_EV_TOKEN_GOT);

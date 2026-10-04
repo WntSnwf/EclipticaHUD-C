@@ -47,7 +47,7 @@ typedef enum {
 } EventType;
 
 #define EV_NAME_CAP   64
-#define EV_CLASS_CAP  32
+#define EV_CLASS_CAP  64
 
 typedef struct {
     EventType type;

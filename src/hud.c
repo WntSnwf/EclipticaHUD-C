@@ -437,21 +437,37 @@ static void draw_bossline(HDC dc, const HudLayout* L, const StatsView* v)
     }
 
     if (has_boss) {
-        char tmp[32], right[224];
+        char tmp[32];
         fmt_duration(tmp, sizeof(tmp), v->fight_elapsed > 0 ? v->fight_elapsed : 0);
+        int y = r->top + 2;
         if (v->target && v->target[0]) {
-            char t2[32];
+            char t2[32], head[64], label[96], tail[64], who[96];
             fmt_duration(t2, sizeof(t2), v->target_secs > 0 ? v->target_secs : 0);
+            snprintf_(head, sizeof(head), TXT_DURATION "   ", tmp);
+            /* 玩家名过长（> 10 字符）时收成"前 5 字…"：14 个日文字符的名字
+             * 会把整行撑到和左边的 Boss 名撞在一起 */
+            names_shorten(v->target, who, sizeof(who));
             if (v->target_is_boss || !v->target_obj || !v->target_obj[0])
-                snprintf_(right, sizeof(right), TXT_DURATION "   " TXT_TARGET_FOR,
-                          tmp, v->target, t2);
+                snprintf_(label, sizeof(label), TXT_TARGET_LBL, "");     /* "目标 " */
             else
-                snprintf_(right, sizeof(right), TXT_DURATION "   " TXT_TARGET_OF,
-                          tmp, v->target_obj, v->target, t2);
+                snprintf_(label, sizeof(label), TXT_TARGET_OF_LBL, v->target_obj);
+            snprintf_(tail, sizeof(tail), " %s", t2);
+
+            /* 从右往左逐段排布，最后把玩家名单独用醒目色画出来。*/
+            int x = r->right - 2;
+            int w;
+            w = text_w(dc, g_f_small, tail);   text_r(dc, x, y, g_f_small, C_DIM, tail);   x -= w;
+            w = text_w(dc, g_f_small, who);
+            text_r(dc, x, y, g_f_small, C_GOLD, who);                    x -= w;
+            int room = x - (r->left + 2 + text_w(dc, g_f_body, left) + 10);
+            fit_text(dc, g_f_small, label, room);
+            w = text_w(dc, g_f_small, label);  text_r(dc, x, y, g_f_small, C_DIM, label);  x -= w;
+            w = text_w(dc, g_f_small, head);   text_r(dc, x, y, g_f_small, C_DIM, head);
         } else {
+            char right[96];
             snprintf_(right, sizeof(right), TXT_DURATION "   " TXT_TARGET_NONE, tmp);
+            text_r(dc, r->right - 2, y, g_f_small, C_DIM, right);
         }
-        text_r(dc, r->right - 2, r->top + 2, g_f_small, C_DIM, right);
     } else if (v->target && v->target[0]) {
         /* 不在 Boss 战时也汇报最近一次目标切换（覆盖杂兵/召唤物）*/
         char right[224], t2[32];

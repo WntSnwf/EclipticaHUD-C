@@ -33,7 +33,12 @@ static void copy_span(char* dst, int cap, const char* s, size_t n)
     while (n > 0 && (*s == ' ' || *s == '\t')) { s++; n--; }
     while (n > 0 && (s[n - 1] == ' ' || s[n - 1] == '\t' ||
                      s[n - 1] == '\r' || s[n - 1] == '\n')) n--;
-    if ((int)n > cap - 1) n = (size_t)(cap - 1);
+    if ((int)n > cap - 1) {
+        n = (size_t)(cap - 1);
+        /* 绝不能切在多字节字符中间：回退掉结尾的连续字节，
+         * 否则会留下半个 UTF-8 字符，界面显示成乱码方块 */
+        while (n > 0 && ((unsigned char)s[n] & 0xC0) == 0x80) n--;
+    }
     memcpy(dst, s, n);
     dst[n] = 0;
 }
@@ -164,6 +169,9 @@ static bool parse_msg(const char* m, Event* ev)
         if (!sep) return false;
         copy_until(ev->name, EV_NAME_CAP, rest, sep);
         strip_clone(ev->name);                       /* "Amaziah(Clone)" -> "Amaziah" */
+        /* 玩家名原样保留（实测最长 14 个日文字符 = 42 字节，EV_CLASS_CAP 已放大到
+         * 64 容得下）。收短成"前 5 字…"是**显示层**的事，见 hud.c / evtext.c，
+         * 这样统计里仍是完整名字。*/
         copy_until(ev->cls, EV_CLASS_CAP, sep + strlen(" transferred to "), NULL);
         if (!ev->cls[0]) return false;               /* 目标为空 -> 参考实现同样丢弃 */
         ev->type = EV_OWNERSHIP;
