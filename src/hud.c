@@ -33,7 +33,7 @@
 #define C_PURPLE     RGB(196, 168, 255)
 
 /* ---------------- 逻辑版式常量 ---------------- */
-#define TABLE_ROWS 9
+#define TABLE_ROWS 8
 #define ROW_H      19
 #define PAD        10
 #define TITLE_H    26
@@ -496,8 +496,7 @@ static COLORREF row_color(int row)
     case 2: return C_RED;       /* 承伤 */
     case 4: return C_RED;       /* 最大受击 */
     case 6: return C_RED;       /* 承伤/秒 */
-    case 7: return C_PURPLE;    /* 死亡 */
-    case 8: return C_GREEN;     /* 印记 */
+    case 7: return C_GREEN;     /* 印记 */
     default: return C_TEXT;
     }
 }
@@ -543,7 +542,6 @@ static void draw_table(HDC dc, const HudLayout* L, const StatsView* v)
         rn->hits > 0 ? rn->taken / rn->hits : 0,
         ft->hits > 0 ? ft->taken / ft->hits : 0, true);
     ROW(TXT_ROW_TPS,    FMT_RATE,   v->taken_per_sec, v->taken_per_sec, 0, false);
-    ROW(TXT_ROW_DEATHS, FMT_INT,    sg->deaths, rn->deaths, ft->deaths, true);
     ROW(TXT_ROW_TOKENS, FMT_INT,    sg->tokens, rn->tokens, 0, false);
 #undef ROW
 

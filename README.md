@@ -48,8 +48,9 @@ VRChat 世界 **Ecliptica** 的战斗统计覆盖层：跟随 VRChat 日志，�
 | **本局 Run** | 一次进入 Ecliptica 世界到离开 |
 | **本场 Fight** | 一次 Boss 战（同一 Boss 的 `Phase2/Phase3` 视为续战并合并）|
 
-每级都给出：伤害、DPS、承伤、受击次数、最大受击、平均受击、承伤/秒、死亡、印记。
+每级都给出：伤害、DPS、承伤、受击次数、最大受击、平均受击、承伤/秒、印记。
 DPS 使用可切换的滑动窗口：**3 / 5 / 10 / 30 / 60 / 120 秒**。
+（早期版本还有一栏「死亡」，已按需求移除——死亡只在事件日志里留一条记录。）
 
 多形态 Boss（例如 `JimBringer → JimBringerPhase2 → JimBringerPhase3`）有两个坑，
 程序都做了处理：
@@ -272,7 +273,7 @@ world_names=
 | 造成伤害 | `Dealing 74 STRIKE damage` / `Dealing 38 NON-STRIKE damage` |
 | 受到伤害 | `damage has been taken: 43, from source: (Peltapod) attack_Slam` |
 | 目标（仇恨）切换 | `ownership of Amaziah transferred to OtherPlayer` |
-| 死亡 | `Local controller dead, switching off.` |
+| 死亡 | `Local controller dead, switching off.`（只写事件日志，不计入统计）|
 | 印记 | `spawn token, True, 55` + `ECLIPTICA saving SESSION ID 11508` |
 | 敌人工池 | `Initializing Enemy POOL ID17 as ENEMY ID 87` / `Retiring Enemy POOL ID19` |
 
@@ -281,7 +282,10 @@ world_names=
 **死亡连刷。** 一次死亡会在日志里连刷几十行 `Local controller dead, switching off.`
 （实测 8 秒内 34 行），中间还会混进 `ECLIPTICA saving SESSION ID` 之类的无关行。
 程序要求「上次死亡之后必须再次出现活着的证据（造成伤害 / 受到伤害 / 换阶段 / 开 Boss 战 /
-出现印记）」，并叠加 3 秒静默期，因此一次死亡只计一次。
+出现印记）」，并叠加 3 秒静默期。
+
+> 死亡次数**已不再计入统计**（面板里没有「死亡」这一栏）。这条去重逻辑现在只为
+> **事件日志**服务：一次死亡只写一条「你已阵亡」，否则日志会被连刷的几十行塞满。
 
 **多形态 Boss 的击杀行会迟到。** 实测 `JimBringerPhase3` 在 19:12:21 开战，
 `Boss JimBringerPhase2 dead` 直到 19:12:22 才出现。程序结算击杀时要求对象名完全一致
@@ -416,7 +420,7 @@ mingw32-make test
 ```
 
 覆盖解析器、名称映射、世界识别、格式化、三级统计、DPS 窗口、阶段切换、Boss 续战、
-目标追踪、死亡连刷、跨世界与事件日志，共 **160 项检查**。
+目标追踪、过长玩家名、间歇期木桩、团灭重置、跨世界与事件日志，共 **242 项检查**。
 
 ### 日志回放摘要
 
@@ -430,7 +434,8 @@ test_core.exe <日志文件>
 lines=1552  events=415  accepted=375
 ownership: parse 0 -> keep 0 (per-object, target really changed)
 runs=1  in_run=0  stage_no=1  targets_total=0
-all runs: deaths=1  kills=1  targets=0
+all runs: kills=1  targets=0
+run: dmg=3188 taken=453 hits=46 tokens=1 fights=1 stages=1
 ```
 
 ### 离屏界面预览
@@ -447,11 +452,11 @@ preview.exe <日志> <缩放%> <是否带日志面板 0/1> <输出.bmp> [只回�
 | 项目 | 结果 |
 |---|---|
 | 构建 | MinGW-w64 8.1.0，`-Wall -Wextra` **零警告零错误** |
-| 单元测试 | **239 项检查全部通过** |
+| 单元测试 | **242 项检查全部通过** |
 | 真实日志回放 | 单份 53834 行日志解析出 **9359 个事件** |
 | 自动定位 | 无参数启动即跟随 VRChat 目录下 mtime 最新的 `output_log_*.txt` |
 | 会话轮换 | 运行中新建更新的日志文件后自动切换跟随 |
-| 死亡去抖 | 8 秒内 34 行死亡日志 → 计为 **1 次** |
+| 死亡去抖 | 8 秒内 34 行死亡日志 → 事件日志只写 **1 条**（死亡次数已不计入统计）|
 | 间歇期木桩 | 间歇期内 20+ 行 `Dealing 30`：本局伤害在间歇期前后**完全不变**（实测 4,965 → 4,965）|
 | 团灭重置 | 实测日志中 Boss 未死即进间歇期 / 非第一阶段出现 `Hall of Beginnings` 均能识别，本局归零并留下一条「失败」历史 |
 | Boss 初始目标 | `FlyLord` 开战后 57 秒内显示 `目标 —`，不再借用上一阶段的敌人（旧版会显示 `LavaSac → …`）|

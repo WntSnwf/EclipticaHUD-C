@@ -29,7 +29,7 @@ typedef struct { double t, v; } Sample;
 /* 聚合量（无滑动窗口，可安全长期保存） */
 typedef struct {
     double dmg, taken, max_hit;
-    int    hits, deaths, tokens;
+    int    hits, tokens;
 } Agg;
 
 /* 某个敌方单位最近一次已知的归属（"ownership of X transferred to Y"）*/
@@ -140,7 +140,7 @@ typedef struct {
     int    view_fight;         /* -1 = 最新一场 */
 
     char   last_text[96];      /* 最近一条事件描述（供状态栏） */
-    double last_death_t;       /* 上次计入的死亡时间 */
+    double last_death_t;       /* 上次记入事件日志的死亡时间（仅用于去重）*/
     double alive_t;            /* 最近一次"还活着"的证据时间 */
 } Stats;
 

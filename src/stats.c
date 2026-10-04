@@ -524,10 +524,12 @@ bool stats_on_event(Stats* s, const Event* e)
     }
 
     case EV_PLAYER_DEAD: {
-        /* 一次死亡常常连刷几十行 "Local controller dead"（实测 8 秒内 34 行），
-         * 而且中间还会混入 ECLIPTICA saving SESSION ID 之类的无关行。
-         * 判据：必须"上次死亡之后又出现了活着的证据"才允许再计一次，
-         * 再加一个静默期兜底，避免把同一次死亡的连刷算成多次。*/
+        /* 死亡次数**不再计入任何统计**（已按需求移除），但事件日志仍要记一条，
+         * 而且一次死亡常常连刷几十行 "Local controller dead"（实测 8 秒内 34 行），
+         * 中间还会混入 "ECLIPTICA saving SESSION ID" 之类的无关行。
+         * 所以这里的去重仍然必要：必须"上次死亡之后又出现了活着的证据"
+         * 才允许再记一条，再加一个静默期兜底，否则日志会被刷屏。
+         * 返回值即"是否采纳"，调用方据此决定要不要写进事件日志。*/
         if (!s->in_run) return false;
         const double DEATH_HOLD = 3.0;
         bool prev = s->last_death_t > 0;
@@ -536,10 +538,7 @@ bool stats_on_event(Stats* s, const Event* e)
         if (prev && t - s->last_death_t < DEATH_HOLD) return false;
 
         s->last_death_t = t;
-        s->alive_t = 0;                       /* 需要新的存活证据才能再计一次 */
-        s->run_u.a.deaths++;
-        if (s->in_fight) s->fight_u.a.deaths++;
-        if (s->in_stage) s->stage_u.a.deaths++;
+        s->alive_t = 0;                       /* 需要新的存活证据才能再记一次 */
         break;
     }
 

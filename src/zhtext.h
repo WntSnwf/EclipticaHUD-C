@@ -47,7 +47,6 @@
 #define TXT_ROW_MAXHIT   "最大受击"
 #define TXT_ROW_AVGHIT   "平均受击"
 #define TXT_ROW_TPS      "承伤/秒"
-#define TXT_ROW_DEATHS   "死亡"
 #define TXT_ROW_TOKENS   "印记"
 
 /* 信息区 */
