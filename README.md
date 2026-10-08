@@ -20,6 +20,7 @@ VRChat 世界 **Ecliptica** 的战斗统计覆盖层：跟随 VRChat 日志，�
 
 - [特性](#特性)
 - [快速开始](#快速开始)
+- [多语言版本](#多语言版本)
 - [命令行参数](#命令行参数)
 - [界面操作](#界面操作)
 - [配置文件](#配置文件)
@@ -31,6 +32,9 @@ VRChat 世界 **Ecliptica** 的战斗统计覆盖层：跟随 VRChat 日志，�
 - [兼容性与限制](#兼容性与限制)
 - [致谢](#致谢)
 - [许可证](#许可证)
+
+> 🌐 **语言 Language 言語**：
+> [简体中文](README.md) · [English](README.en.md) · [日本語](README.ja.md)
 
 > 📖 **只想上手使用？** 请看 [使用说明.md](使用说明.md) —— 逐块讲解界面、
 > 每项设置怎么改（含 **DPS 统计时间的调整方式**）、常见问题排查。
@@ -127,6 +131,46 @@ build.bat
 ```
 
 产物为 `ecliptica-hud-c.exe`（GUI 子系统，无控制台窗口）。
+
+### 多语言版本
+
+界面文案有**简体中文 / English / 日本語**三套，共用同一份源码，
+只有 `src/zhtext_*.h` 不同；构建时用 `LANG` 选择：
+
+```bat
+mingw32-make                  :: 中文（默认）-> ecliptica-hud-c.exe
+mingw32-make LANG=en          :: 英文        -> ecliptica-hud-c-en.exe
+mingw32-make LANG=ja          :: 日文        -> ecliptica-hud-c-ja.exe
+
+build.bat                     :: MSVC：中文
+build.bat en                  :: MSVC：英文
+build.bat ja                  :: MSVC：日文
+```
+
+对应文档：
+
+| 语言 | 说明书 |
+|---|---|
+| 简体中文 | [README.md](README.md) · [使用说明.md](使用说明.md) |
+| English | [README.en.md](README.en.md) · [USAGE.en.md](USAGE.en.md) |
+| 日本語 | [README.ja.md](README.ja.md) · [USAGE.ja.md](USAGE.ja.md) |
+
+实现要点：
+
+- 三种语言共用同一组宏名（`TXT_*`），`src/zhtext.h` 按 `UI_LANG_EN` /
+  `UI_LANG_JA` 派发到对应的文案表，源码里不写死字符串。
+- 中间文件按语言分目录（`build/<lang>/`），切换语言不会串用旧目标文件。
+- **字体按语言选择并带兜底链**：中文 `Microsoft YaHei`、日文 `Meiryo UI`、
+  英文 `Segoe UI`；首选字体不存在时依次回落到系统里实际装了的
+  中日字体，保证日志里的中文/日文玩家名不会渲染成方块。
+- **过滤器按钮宽度按语言给定**（`TXT_CHIP_W`）：英文/日文标签比中文宽，
+  实测中文 2 字 ≈ 24px、日文「ターゲット」5 字 ≈ 43px、英文 `Stage/Boss` ≈ 58px，
+  所以三种语言各给一组宽度，绘制与命中测试共用同一份矩形。
+
+> 新增界面文案时，`src/zhtext_zh.h`、`zhtext_en.h`、`zhtext_ja.h`
+> **三个文件要一起补**，否则对应语言的编译会报未定义。
+> 想知道某个标签在当前语言下有多宽，可以照 `TXT_CHIP_W` 的思路写个小工具
+> 用 `GetTextExtentPoint32W` 量一下再定尺寸。
 
 ### 运行
 
@@ -378,7 +422,7 @@ VRChat output_log.txt
 
 ```
 标题行(26) → 按钮行(27) → 阶段/进度(42) → 本场 Boss(22)
-→ 三级统计表(表头 18 + 9×19) → 伤害来源(自适应) → [事件日志(可选 142)]
+→ 三级统计表(表头 18 + 8×19) → 伤害来源(自适应) → [事件日志(可选 142)]
 → 历史翻页条(26) → 底部状态栏(22)
 ```
 
@@ -401,11 +445,16 @@ src/
 ├── evlog.c    事件日志环形缓冲
 ├── evtext.c   事件 → 事件日志文本（overlay 与 preview 共用）
 ├── format.c   数值/时间格式化（不依赖 Windows，可单元测试）
-├── zhtext.h   中文界面文案
+├── zhtext.h   界面文案派发（按 UI_LANG_* 选下面三个之一）
+├── zhtext_zh.h  简体中文文案 + 字体名 + 过滤器按钮宽度
+├── zhtext_en.h  English strings
+├── zhtext_ja.h  日本語の文言
 └── compat.h   编译器兼容垫片（MSVC / MinGW）
 test_core.c    逻辑测试 + 日志回放摘要工具
 preview.c      离屏界面预览工具
-使用说明.md     面向使用者的操作手册（界面详解 / 设置改法 / FAQ）
+README.md      [中文] 项目说明       使用说明.md  [中文] 操作手册
+README.en.md   [EN]   project readme USAGE.en.md  [EN]   user guide
+README.ja.md   [JA]   プロジェクト紹介 USAGE.ja.md  [JA]   取扱説明書
 testdata/      回归夹具（alt_world.log：房间名与官方不同的一种日志样本）
 ```
 

@@ -159,6 +159,59 @@ static void test_names(void)
     CHECK(!strcmp(who, "Black Virtue") && !strcmp(atk, "Damage Tick"), "Missing Key 映射");
 }
 
+/* ---------------- 过长玩家名截断 ----------------
+ *
+ * 日志里出现过 14 个日文/中文字符的玩家名（42 字节），显示层要收成
+ * "前 5 字…"。必须按 UTF-8 字符边界截，否则会留下半个字符 ——
+ * 界面上就是乱码方块（实测过）。 */
+static void test_long_names(void)
+{
+    char buf[96];
+
+    /* UTF-8 字符数按字符算，不是按字节算 */
+    CHECK(names_utf8_len("SRETR00") == 7, "ASCII 名长度 = 7");
+    CHECK(names_utf8_len("三松许今年也超爱你明年也保证") == 14, "14 个中文字符 = 14");
+    CHECK(names_utf8_len("") == 0, "空串长度 = 0");
+
+    /* 不超过 10 字符：原样保留 */
+    names_shorten("SRETR00", buf, sizeof(buf));
+    CHECK(!strcmp(buf, "SRETR00"), "7 字符名原样保留");
+    names_shorten("Millianna_", buf, sizeof(buf));
+    CHECK(!strcmp(buf, "Millianna_"), "10 字符名原样保留（边界）");
+
+    /* 超过 10 字符：前 5 字 + 省略号 */
+    names_shorten("三松许今年也超爱你明年也保证", buf, sizeof(buf));
+    CHECK(!strcmp(buf, "三松许今年…"), "14 字中文名 -> 前 5 字 + …");
+    CHECK(names_utf8_len(buf) == 6, "截断后是 5 个字符 + 省略号");
+    CHECK(strlen(buf) == 18, "截断后 18 字节（5x3 + 3）");
+
+    names_shorten("てぃな xplaTina", buf, sizeof(buf));
+    CHECK(!strcmp(buf, "てぃな x…"), "12 字符混合名 -> 前 5 字 + …");
+    names_shorten("蒼凪 みなと／Minato", buf, sizeof(buf));
+    CHECK(!strcmp(buf, "蒼凪 みな…"), "13 字符日文名 -> 前 5 字 + …");
+    names_shorten("ひなた_hinatan", buf, sizeof(buf));
+    CHECK(!strcmp(buf, "ひなた_h…"), "11 字符名 -> 前 5 字 + …");
+
+    /* 截断结果必须是合法 UTF-8：不能以连续字节结尾 */
+    CHECK(((unsigned char)buf[strlen(buf) - 1] & 0xC0) != 0x80 ||
+          (unsigned char)buf[strlen(buf) - 1] == 0xA6, "截断结果不在半个字符上结束");
+
+    /* 缓冲区太小时不能写出界，也不能留下半个字符 */
+    char tiny[8];
+    memset(tiny, 0x7F, sizeof(tiny));
+    names_shorten("三松许今年也超爱你明年也保证", tiny, 4);
+    CHECK(strlen(tiny) <= 3, "缓冲区过小时不越界");
+    CHECK(((unsigned char)tiny[0] & 0xC0) != 0x80, "小缓冲区结果不从连续字节开始");
+
+    /* 真实日志里的那条 ownership：玩家名经解析后应完整保留（64 字节够用） */
+    Event e;
+    CHECK(parse_line("2026.10.03 19:09:48 Debug      -  ownership of Middleman transferred to 三松许今年也超爱你明年也保证", &e)
+          && e.type == EV_OWNERSHIP, "14 字玩家名的 ownership 能解析");
+    CHECK(!strcmp(e.name, "Middleman"), "对象名正确");
+    CHECK(!strcmp(e.cls, "三松许今年也超爱你明年也保证"), "玩家名完整保留（42 字节 < EV_CLASS_CAP）");
+    CHECK(names_utf8_len(e.cls) == 14, "解析后字符数仍是 14");
+}
+
 /* ---------------- 世界识别 ---------------- */
 
 static void test_world_aliases(void)
@@ -230,7 +283,6 @@ static void test_stats_run(void)
     CHECK(fabs(g_st.cur_run.a.dmg - 350) < 0.01, "本局伤害 = 100+50+200 = 350");
     CHECK(fabs(g_st.cur_run.a.taken - 170) < 0.01, "本局承伤 = 40+10+120 = 170");
     CHECK(g_st.cur_run.a.hits == 3, "本局受击 = 3");
-    CHECK(g_st.cur_run.a.deaths == 1, "本局死亡 = 1（连发去重）");
     CHECK(g_st.cur_run.a.tokens == 1, "本局印记 = 1");
     CHECK(g_st.cur_run.kills == 1, "本局击倒 Boss = 1");
     CHECK(g_st.cur_run.targets == 1, "Boss 目标切换 = 1");
@@ -361,11 +413,15 @@ static void test_target_tracking(void)
     CHECK(g_st.targets_total == 0, "无 ownership 时切换次数为 0");
 }
 
-/* ---------------- 统计：死亡连刷只算一次 ---------------- */
+/* ---------------- 事件日志：死亡连刷只记一条 ----------------
+ *
+ * 死亡次数已经不再计入统计，但事件日志仍要记一条，且不能一次死亡刷满屏。
+ * 所以这里直接断言 stats_on_event() 的返回值（true = 采纳并写日志）。 */
 
 static void test_death_burst(void)
 {
     Event e;
+    int accepted = 0;
     stats_init(&g_st);
     memset(&e, 0, sizeof(e));
     e.type = EV_ROOM_ENTER; strcpy(e.name, "Ecliptica"); e.t = 100;
@@ -377,28 +433,40 @@ static void test_death_burst(void)
 
     /* 真实日志 2026-09-23 14:33:23 起的连刷：8 秒 34 行，中间还夹了一条无关行 */
     e.type = EV_PLAYER_DEAD;
-    for (int i = 0; i < 10; i++) { e.t = 103 + i * 0.5; stats_on_event(&g_st, &e); }
+    for (int i = 0; i < 10; i++) {
+        e.t = 103 + i * 0.5;
+        if (stats_on_event(&g_st, &e)) accepted++;
+    }
+    CHECK(accepted == 1, "8 秒内 10 行死亡只采纳 1 条");
     /* 中间混入一条 ECLIPTICA saving SESSION ID，不应把玩家判为复活 */
     e.type = EV_SESSION_SAVE; strcpy(e.name, ""); e.t = 108; stats_on_event(&g_st, &e);
     e.type = EV_PLAYER_DEAD;
-    for (int i = 0; i < 10; i++) { e.t = 108.5 + i * 0.5; stats_on_event(&g_st, &e); }
-    CHECK(g_st.run_u.a.deaths == 1, "8 秒内 20 行死亡只算 1 次死亡");
+    for (int i = 0; i < 10; i++) {
+        e.t = 108.5 + i * 0.5;
+        if (stats_on_event(&g_st, &e)) accepted++;
+    }
+    CHECK(accepted == 1, "整段连刷总共只采纳 1 条（无关行不算复活证据）");
 
-    /* 复活后重新活动（打下伤害）再死：必须计第二次 */
+    /* 复活后重新活动（打下伤害）再死：必须再记一条 */
     e.type = EV_DEALT; e.amount = 35; e.t = 130; stats_on_event(&g_st, &e);
-    e.type = EV_PLAYER_DEAD; e.t = 200; stats_on_event(&g_st, &e);
-    CHECK(g_st.run_u.a.deaths == 2, "复活后再次死亡计为第 2 次");
+    e.type = EV_PLAYER_DEAD; e.t = 200;
+    CHECK(stats_on_event(&g_st, &e), "复活后再次死亡记第 2 条");
 
-    /* 第三次：静默期内即使混进"受伤"这类存活证据，也不能立刻再计一次 */
-    e.type = EV_PLAYER_DEAD; e.t = 201; stats_on_event(&g_st, &e);
-    e.type = EV_PLAYER_DEAD; e.t = 202; stats_on_event(&g_st, &e);
-    CHECK(g_st.run_u.a.deaths == 2, "静默期内的连刷不重复计数");
+    /* 静默期内即使混进"受伤"这类存活证据，也不能立刻再记 */
+    e.type = EV_PLAYER_DEAD; e.t = 201;
+    CHECK(!stats_on_event(&g_st, &e), "静默期内的连刷不采纳");
+    e.type = EV_PLAYER_DEAD; e.t = 202;
+    CHECK(!stats_on_event(&g_st, &e), "静默期内的连刷不采纳");
     e.type = EV_DAMAGE_TAKEN; e.amount = 5; e.name[0] = 0; e.t = 202.5;
     stats_on_event(&g_st, &e);
-    e.type = EV_PLAYER_DEAD; e.t = 202.8; stats_on_event(&g_st, &e);
-    CHECK(g_st.run_u.a.deaths == 2, "刚有存活证据但静默期未过，仍不计新死亡");
-    e.type = EV_PLAYER_DEAD; e.t = 204; stats_on_event(&g_st, &e);
-    CHECK(g_st.run_u.a.deaths == 3, "静默期过后再死计为第 3 次");
+    e.type = EV_PLAYER_DEAD; e.t = 202.8;
+    CHECK(!stats_on_event(&g_st, &e), "刚有存活证据但静默期未过，仍不采纳");
+    e.type = EV_PLAYER_DEAD; e.t = 204;
+    CHECK(stats_on_event(&g_st, &e), "静默期过后再死记第 3 条");
+
+    /* 死亡不再产生任何统计量 */
+    CHECK(g_st.run_u.a.hits == 2, "本局受击次数只来自两次受伤事件，与死亡无关");
+    CHECK(g_st.run_u.a.tokens == 0, "死亡不影响印记");
 }
 
 /* ---------------- 统计：JimBringer 多阶段（真实日志回归） ----------------
@@ -844,18 +912,17 @@ static void replay_summary(const char* path)
     printf("lines=%ld  events=%ld  accepted=%ld\n", n, evs, kept);
     printf("ownership: parse %ld -> keep %ld (per-object, target really changed)\n",
            own_all, own_kept);
-    int tot_deaths = 0, tot_kills = 0, tot_targets = 0;
+    int tot_kills = 0, tot_targets = 0;
     for (int i = 0; i < g_rp.n_runs; i++) {
-        tot_deaths += g_rp.runs[i].a.deaths;
         tot_kills += g_rp.runs[i].kills;
         tot_targets += g_rp.runs[i].targets;
     }
     printf("runs=%d  in_run=%d  stage_no=%d  targets_total=%d\n",
            g_rp.n_runs, g_rp.in_run, g_rp.stage_no, g_rp.targets_total);
-    printf("all runs: deaths=%d  kills=%d  targets=%d\n", tot_deaths, tot_kills, tot_targets);
-    printf("run: dmg=%.0f taken=%.0f hits=%d deaths=%d tokens=%d fights=%d stages=%d\n",
+    printf("all runs: kills=%d  targets=%d\n", tot_kills, tot_targets);
+    printf("run: dmg=%.0f taken=%.0f hits=%d tokens=%d fights=%d stages=%d\n",
            g_rp.run_u.a.dmg, g_rp.run_u.a.taken, g_rp.run_u.a.hits,
-           g_rp.run_u.a.deaths, g_rp.run_u.a.tokens,
+           g_rp.run_u.a.tokens,
            g_rp.cur_run.n_fights, g_rp.cur_run.n_stages);
 }
 
@@ -865,6 +932,7 @@ int main(int argc, char** argv)
 
     printf("=== 解析器 ===\n");              test_parser();
     printf("\n=== 名称/来源 ===\n");         test_names();
+    printf("\n=== 过长玩家名 ===\n");        test_long_names();
     printf("\n=== 世界识别 ===\n");          test_world_aliases();
     printf("\n=== 格式化 ===\n");            test_format();
     printf("\n=== 统计：完整一局 ===\n");     test_stats_run();

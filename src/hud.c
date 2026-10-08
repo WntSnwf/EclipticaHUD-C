@@ -46,18 +46,62 @@
 /* ---------------- 字体 ---------------- */
 static HFONT g_f_title, g_f_body, g_f_small;
 
+/* 每一套文案给出首选字体（TXT_FONT_FACE），取不到时按这张表往下找。
+ * 顺序有意把中日字体排在前面：日志里的玩家名经常是中文/日文，
+ * 纯拉丁字体（Segoe UI 之类）缺字形会显示成方块。*/
+static const wchar_t* const FALLBACK_FACES[] = {
+    L"Microsoft YaHei", L"Meiryo UI", L"Yu Gothic UI", L"MS UI Gothic",
+    L"Meiryo", L"MS Gothic", L"SimSun", L"Segoe UI", L"Tahoma"
+};
+
+static int CALLBACK enum_face_cb(const LOGFONTW* lf, const TEXTMETRICW* tm,
+                                 DWORD type, LPARAM lp)
+{
+    (void)lf; (void)tm; (void)type;
+    *(int*)lp = 1;
+    return 0;                       /* 找到一个就够了 */
+}
+
+static bool face_installed(HDC dc, const wchar_t* face)
+{
+    LOGFONTW lf;
+    int found = 0;
+    memset(&lf, 0, sizeof(lf));
+    lf.lfCharSet = DEFAULT_CHARSET;
+    wcsncpy(lf.lfFaceName, face, LF_FACESIZE - 1);
+    EnumFontFamiliesExW(dc, &lf, enum_face_cb, (LPARAM)&found, 0);
+    return found != 0;
+}
+
+/* 选出实际可用的字体名 */
+static const wchar_t* pick_face(void)
+{
+    HDC dc = GetDC(NULL);
+    if (!dc) return TXT_FONT_FACE;
+    const wchar_t* face = TXT_FONT_FACE;
+    if (!face_installed(dc, face)) {
+        face = FALLBACK_FACES[0];
+        for (size_t i = 0; i < sizeof(FALLBACK_FACES) / sizeof(FALLBACK_FACES[0]); i++) {
+            if (face_installed(dc, FALLBACK_FACES[i])) { face = FALLBACK_FACES[i]; break; }
+        }
+    }
+    ReleaseDC(NULL, dc);
+    return face;
+}
+
 static void ensure_fonts(void)
 {
     if (g_f_title) return;
+    const wchar_t* face = pick_face();
     g_f_title = CreateFontW(-15, 0, 0, 0, FW_BOLD, 0, 0, 0, DEFAULT_CHARSET,
                             OUT_TT_PRECIS, CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY,
-                            DEFAULT_PITCH | FF_DONTCARE, L"Microsoft YaHei");
+                            DEFAULT_PITCH | FF_DONTCARE, face);
     g_f_body  = CreateFontW(-13, 0, 0, 0, FW_NORMAL, 0, 0, 0, DEFAULT_CHARSET,
                             OUT_TT_PRECIS, CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY,
-                            DEFAULT_PITCH | FF_DONTCARE, L"Microsoft YaHei");
+                            DEFAULT_PITCH | FF_DONTCARE, face);
     g_f_small = CreateFontW(-12, 0, 0, 0, FW_NORMAL, 0, 0, 0, DEFAULT_CHARSET,
                             OUT_TT_PRECIS, CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY,
-                            DEFAULT_PITCH | FF_DONTCARE, L"Microsoft YaHei");
+                            DEFAULT_PITCH | FF_DONTCARE, face);
 }
 
 void hud_free_fonts(void)
@@ -245,8 +289,8 @@ void hud_layout(int w, int h, bool log_on, HudLayout* L)
         rset(&L->log_up, L->log.right - 6 - 38, L->log_title_y, L->log.right - 6 - 20, L->log_title_y + 17);
         rset(&L->log_down, L->log.right - 6 - 18, L->log_title_y, L->log.right - 6, L->log_title_y + 17);
 
-        /* 过滤器按钮：宽度固定，保证绘制与命中测试完全一致 */
-        static const int CHIP_W[EVFILT_COUNT] = { 36, 36, 36, 80 };
+        /* 过滤器按钮：宽度按语言给定，保证绘制与命中测试完全一致 */
+        static const int CHIP_W[EVFILT_COUNT] = TXT_CHIP_W;
         int fx = L->log.left + 74;
         for (int i = 0; i < EVFILT_COUNT; i++) {
             rset(&L->log_chip[i], fx, L->log_title_y, fx + CHIP_W[i], L->log_title_y + 17);
