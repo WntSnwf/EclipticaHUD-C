@@ -231,6 +231,18 @@ ecliptica-hud-c.exe --demo
 - 耐性データは DLC 側のフォルダにある `Weakness&Resistance.txt`（プレーンテキスト、
   自分で保守するもの）から読みます。
 
+2 回起動するのが面倒なら、リポジトリ直下の **`run.bat`** が両方をまとめて起動します
+（自分と同じ階層と 1 つ上で exe を探すので、リポジトリ構成・兄弟フォルダ構成・
+フラットなダウンロードのどれでも動きます）：
+
+```bat
+run.bat            :: 中国語版（既定）
+run.bat en         :: 英語版
+run.bat ja         :: 日本語版
+run.bat --demo     :: 追加の引数は両方のプログラムにそのまま渡されます
+run.bat /n         :: 何を起動するか表示するだけ（実際には起動しません）
+```
+
 詳しくは **[EclipticaHUD-c-DLC/README.ja.md](EclipticaHUD-c-DLC/README.ja.md)** を参照。
 
 ---

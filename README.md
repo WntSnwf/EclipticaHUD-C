@@ -216,6 +216,17 @@ ecliptica-hud-c.exe --demo
   `hr-dlc.exe` / `hr-dlc-en.exe` / `hr-dlc-ja.exe`。
 - 抗性数据来自它自己目录下的 `Weakness&Resistance.txt`（纯文本，自己维护）。
 
+不想开两次的话，仓库根目录的 **`run.bat`** 可以一次把两者都拉起来
+（会在本级和上一级找两个 exe，所以仓库布局、并列文件夹、扁平下载都能用）：
+
+```bat
+run.bat            :: 中文版（默认）
+run.bat en         :: 英文版
+run.bat ja         :: 日文版
+run.bat --demo     :: 额外参数原样传给两个程序
+run.bat /n         :: 只显示会启动哪些程序，不真的启动
+```
+
 详见 **[EclipticaHUD-c-DLC/README.md](EclipticaHUD-c-DLC/README.md)**。
 
 ---

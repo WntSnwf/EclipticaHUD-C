@@ -203,6 +203,18 @@ Poison      0.5x  ▼ RES
 - The resistance data lives in `Weakness&Resistance.txt` inside its own folder — plain text,
   maintained by you.
 
+If you would rather not start them by hand, **`run.bat`** in the repository root launches both
+in one go. It looks for the two exes next to itself and one level up, so the repository layout,
+the sibling-folder layout and a flat download all work:
+
+```bat
+run.bat            :: Chinese builds (default)
+run.bat en         :: English builds
+run.bat ja         :: Japanese builds
+run.bat --demo     :: extra arguments are passed to both programs
+run.bat /n         :: only print what would be started, start nothing
+```
+
 See **[EclipticaHUD-c-DLC/README.en.md](EclipticaHUD-c-DLC/README.en.md)** for the details.
 
 ---

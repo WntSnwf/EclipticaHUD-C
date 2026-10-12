@@ -163,17 +163,23 @@ Accepted forms:
 | A plain sentence | When a block has no table at all, the text is shown as a note (e.g. `NaN`, `Jim C. Bringer(P1)`) |
 
 **Note text is displayed line by line, exactly as written in the data file.** It is never merged
-into one paragraph and re-wrapped. The `NaN` block is five sentences in the file, and five lines on
-the panel:
+into one paragraph and re-wrapped. The `NaN` block is five sentences in the file, and five entries
+on the panel:
 
 ```
-The weakness depends on the mode it takes.    <- 233 px of text in a 230 px row, so it wraps here
-         takes.
+The weakness depends on the mode it
+  takes.
 Fire mode: weakness is fire
 Frost mode: weakness is frost
 Electric mode: weakness is electric
 Shadow & Luminous mode: no weakness
 ```
+
+A line only wraps when **that line by itself** is wider than the panel; the wrapped continuation is
+indented so it cannot be mistaken for a new line. The first English sentence above happens to be
+long enough to wrap, which is why it occupies two rendered lines. The Chinese and Japanese builds
+show the same block with one sentence per line, because those sentences are narrower — **wrapping
+depends on the text length, not on the language.**
 
 **The note text lives in the data file**, so you write whatever you want shown — the panel does not
 translate it, it only displays it as-is (Chinese and English are both fine).
