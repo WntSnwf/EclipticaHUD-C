@@ -321,7 +321,7 @@ VRChat output_log.txt
 ## テストと検証
 
 ```bat
-mingw32-make test        :: ロジックテスト（143 項のチェック）
+mingw32-make test        :: ロジックテスト（152 項のチェック）
 mingw32-make preview     :: パネルのプレビュー画像をオフスクリーン描画。ディスプレイ不要
 ```
 

@@ -120,7 +120,14 @@ static bool feed_line(LogTail* lt, const char* line)
         return strcmp(prev, lt->boss) != 0 || prev_ph != ph || !prev_in;
     }
 
-    /* Boss 被击杀：只有基础名对得上才清空（避免迟到的上一形态击杀行误清）*/
+    /* Boss 被击杀。
+     *
+     * 这里必须**连形态号一起比**，不能只比基础名 —— 实测日志里多形态 Boss 的
+     * 击杀行会迟到，而且迟到的是上一个形态的：
+     *     7204  now fighting boss: JimBringerPhase3(Clone) ...   <- P3 已经开打
+     *     7222  Boss JimBringerPhase2 dead, personal damage dealt:  <- 18 行之后才来的 P2 击杀
+     * 只比基础名的话，这一行会把正在进行的 P3 一起清掉，表现就是
+     * 「Jim(P3) 的抗性一直不显示」。*/
     {
         static const char* DEAD = " dead, personal damage dealt:";
         const char* d = strstr(line, DEAD);
@@ -138,9 +145,12 @@ static bool feed_line(LogTail* lt, const char* line)
                 if (n >= sizeof(dead_name)) n = sizeof(dead_name) - 1;
                 memcpy(dead_name, name_start, n);
                 dead_name[n] = 0;
+
+                int  dph = res_boss_phase(dead_name);   /* 无 PhaseN 后缀 = 1 */
                 char db[64];
                 res_boss_base(dead_name, db, sizeof(db));
-                if (!strcmp(db, lt->boss)) {
+
+                if (!strcmp(db, lt->boss) && dph == lt->phase) {
                     lt->in_fight = false;
                     return true;
                 }

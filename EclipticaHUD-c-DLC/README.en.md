@@ -339,7 +339,7 @@ VRChat output_log.txt
 ## Tests and verification
 
 ```bat
-mingw32-make test        :: logic tests (143 checks)
+mingw32-make test        :: logic tests (152 checks)
 mingw32-make preview     :: render one panel preview offscreen, no monitor needed
 ```
 

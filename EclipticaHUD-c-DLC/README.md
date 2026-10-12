@@ -333,7 +333,7 @@ VRChat output_log.txt
 ## 测试与验证
 
 ```bat
-mingw32-make test        :: 逻辑测试（143 项检查）
+mingw32-make test        :: 逻辑测试（152 项检查）
 mingw32-make preview     :: 离屏渲染一张面板预览图，无需显示器
 ```
 

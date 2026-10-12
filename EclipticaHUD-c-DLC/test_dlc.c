@@ -564,6 +564,82 @@ static void test_table_lookup(void)
     (void)dummy;
 }
 
+/* 多形态 Boss 的击杀行会迟到，而且迟到的是**上一个形态**的。
+ *
+ * 实测（2026-10-12 那局）：
+ *   25766  now fighting boss: JimBringerPhase3(Clone) on phase: 1
+ *   25770  Boss JimBringerPhase2 dead, personal damage dealt:   <- 紧接着就来
+ * 只比基础名的话，这一行会把正在进行的 P3 一起清掉，
+ * 表现就是面板在整个 P3 阶段都显示"等待 Boss 战"、抗性一直不出现。 */
+static void test_phase_death(void)
+{
+    printf("\n=== 多形态 Boss：迟到的击杀行 ===\n");
+
+    typedef struct {
+        const char* name;
+        const char* body;
+        bool expect_fight;
+        int  expect_phase;
+    } Case;
+
+    static const Case cases[] = {
+        { "P3 开战后迟到的 P2 击杀行不清场",
+          "ECLIPTICA - now fighting boss: JimBringerPhase2(Clone) on phase: 0\n"
+          "ECLIPTICA - now fighting boss: JimBringerPhase3(Clone) on phase: 1\n"
+          "Boss JimBringerPhase2 dead, personal damage dealt: 100\n",
+          true, 3 },
+        { "P3 自己的击杀行才清场",
+          "ECLIPTICA - now fighting boss: JimBringerPhase3(Clone) on phase: 1\n"
+          "Boss JimBringerPhase3 dead, personal damage dealt: 100\n",
+          false, 1 },
+        { "P1 的击杀行照常清场",
+          "ECLIPTICA - now fighting boss: JimBringer(Clone) on phase: 1\n"
+          "Boss JimBringer dead, personal damage dealt: 100\n",
+          false, 1 },
+        { "单形态 Boss 照常被清",
+          "ECLIPTICA - now fighting boss: Corus(Clone) on phase: 0\n"
+          "Boss Corus dead, personal damage dealt: 100\n",
+          false, 1 },
+        { "P2 进行中不被打扰",
+          "ECLIPTICA - now fighting boss: JimBringerPhase2(Clone) on phase: 0\n",
+          true, 2 },
+        { "P2 的击杀行来得及时，正常清场",
+          "ECLIPTICA - now fighting boss: JimBringerPhase2(Clone) on phase: 0\n"
+          "Boss JimBringerPhase2 dead, personal damage dealt: 100\n",
+          false, 1 },
+    };
+
+    const char* path = "_tmp_phase.log";
+    for (size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); i++) {
+        FILE* f = fopen(path, "wb");
+        if (!f) { CHECK(false, "无法写临时日志"); return; }
+        fputs(cases[i].body, f);
+        fclose(f);
+
+        wchar_t wp[MAX_PATH];
+        MultiByteToWideChar(CP_ACP, 0, path, -1, wp, MAX_PATH);
+
+        LogTail lt;
+        logtail_open(&lt, wp);
+        char msg[200];
+        snprintf(msg, sizeof(msg), "%s -> 仍在战斗 = %s",
+                 cases[i].name, cases[i].expect_fight ? "是" : "否");
+        CHECK(lt.in_fight == cases[i].expect_fight, msg);
+        if (cases[i].expect_fight) {
+            snprintf(msg, sizeof(msg), "%s -> 认出 JimBringer 形态 %d",
+                     cases[i].name, cases[i].expect_phase);
+            CHECK(!strcmp(lt.boss, "JimBringer") && lt.phase == cases[i].expect_phase, msg);
+            if (cases[i].expect_phase == 3) {
+                const BossRes* r = res_find(&T, lt.boss, lt.phase);
+                CHECK(r != NULL && !strcmp(r->name, "Jim C. Bringer(P3)"),
+                      "  而且查得到 Jim C. Bringer(P3) 的抗性");
+            }
+        }
+        logtail_close(&lt);
+    }
+    remove(path);
+}
+
 int main(int argc, char** argv)
 {
     if (argc > 2 && !strcmp(argv[1], "--log")) return probe_log(argv[2]);
@@ -583,6 +659,7 @@ int main(int argc, char** argv)
     test_cn_keys();
     test_absolute_path();
     test_table_lookup();
+    test_phase_death();
 
     printf("\n%s：%d 项检查，%d 项失败\n", fails ? "失败" : "全部通过", checks, fails);
     return fails ? 1 : 0;
