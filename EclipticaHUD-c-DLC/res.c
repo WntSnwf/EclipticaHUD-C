@@ -230,12 +230,9 @@ static void strip_comment(char* s)
     }
 }
 
-bool res_load(ResTable* t, const char* path)
+/* 真正的解析循环：两个入口共用 */
+static bool load_stream(ResTable* t, FILE* f)
 {
-    memset(t, 0, sizeof(*t));
-    FILE* f = fopen(path, "rb");
-    if (!f) return false;
-
     char line[512];
     BossRes* cur = NULL;
     bool fresh_block = true;        /* 文件开头 / 刚遇到 --- */
@@ -308,9 +305,31 @@ bool res_load(ResTable* t, const char* path)
             add_note(cur, s);
         }
     }
-    fclose(f);
     (void)lineno;
     return t->n > 0;
+}
+
+/* 窄字符路径：只有当路径是纯 ASCII、或者本来就是控制台 ANSI 编码时才可靠。
+ * 从 exe 目录拼出来的绝对路径不能用它（见 res.h 的说明）。*/
+bool res_load(ResTable* t, const char* path)
+{
+    memset(t, 0, sizeof(*t));
+    FILE* f = fopen(path, "rb");
+    if (!f) return false;
+    bool ok = load_stream(t, f);
+    fclose(f);
+    return ok;
+}
+
+/* 宽字符路径：exe 同目录下的数据文件必须走这个入口 */
+bool res_load_w(ResTable* t, const wchar_t* path)
+{
+    memset(t, 0, sizeof(*t));
+    FILE* f = _wfopen(path, L"rb");
+    if (!f) return false;
+    bool ok = load_stream(t, f);
+    fclose(f);
+    return ok;
 }
 
 static const BossRes* find_exact(const ResTable* t, const char* key)

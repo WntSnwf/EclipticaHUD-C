@@ -16,6 +16,10 @@
 #define TXT_WAITING       "Waiting for a boss fight…"
 #define TXT_NO_DATA       "No entry for this boss"
 #define TXT_NO_DATA_HINT  "Add one in Weakness&Resistance.txt"
+/* The table itself could not be read at all (different from "no entry for this boss") */
+#define TXT_NO_TABLE_BODY "Resistance table not found"
+#define TXT_NO_TABLE_PUT  "Put Weakness&Resistance.txt in:"
+#define TXT_NO_TABLE_OR   "or point --table at it"
 
 /* Weak / resist markers (numeric entries) */
 #define TXT_MARK_WEAK     "▲ WEAK"
@@ -59,6 +63,7 @@
     "  " TXT_EXE_NAME "                 follow the live VRChat log\n" \
     "  " TXT_EXE_NAME " --log FILE      use only this log file\n" \
     "  " TXT_EXE_NAME " --boss NAME     pin one boss (internal name, e.g. FlyLord)\n" \
+    "  " TXT_EXE_NAME " --table FILE    use this resistance table (else auto-detected)\n" \
     "  " TXT_EXE_NAME " --demo          rotating demo, no log needed\n" \
     "  " TXT_EXE_NAME " --help          show this help\n" \
     "\n" \

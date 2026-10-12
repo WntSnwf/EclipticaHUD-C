@@ -1,4 +1,4 @@
-# Ecliptica HUD DLC — Boss 弱点 / 抗性速查
+﻿# Ecliptica HUD DLC — Boss 弱点 / 抗性速查
 
 [本体程序](../README.md) 的一个**独立DLC**：它跟随同一份 VRChat 日志，
 认出**当前正在打哪只 Boss**，然后把 `Weakness&Resistance.txt` 里对应的
@@ -116,6 +116,7 @@ build.bat ja         :: 日文
 hr-dlc.exe                       :: 自动定位 VRChat 日志并跟随
 hr-dlc.exe --log "D:\...\output_log.txt"   :: 只看指定文件
 hr-dlc.exe --boss FlyLord        :: 不读日志，固定显示某只 Boss（调试用）
+hr-dlc.exe --table "D:\...\Weakness&Resistance.txt"  :: 指定抗性表
 hr-dlc.exe --demo                :: 内置轮播演示，不需要日志
 hr-dlc.exe --help
 ```
@@ -125,6 +126,7 @@ hr-dlc.exe --help
 | （无） | 自动定位日志，**先从头扫一遍**确定当前 Boss，再持续跟随 |
 | `--log <文件>` | 只用这个文件；文件打不开时每 2 秒重试，不会退回到自动定位 |
 | `--boss <内部名>` | 忽略日志，固定显示这一只（内部名，例如 `FlyLord`、`YukiPhase2`）|
+| `--table <文件>` | 指定抗性表。默认会自动查找（见 [数据文件格式](#数据文件格式)）|
 | `--demo` | 依次轮播几只代表型 Boss，用来确认面板本身正常 |
 | `--help`、`-h` | 显示帮助 |
 
@@ -146,7 +148,34 @@ VRChat 换会话（目录里出现更新的日志文件）时会自动切过去�
 
 ## 数据文件格式
 
-数据来自 exe 同目录的 **`Weakness&Resistance.txt`**（UTF-8）。
+数据来自 **`Weakness&Resistance.txt`**（UTF-8）。面板启动时会按下面的顺序找它，
+**第一个找到的为准** —— 所以下载后不管放在哪，一般都能自己找到：
+
+| 顺序 | 位置 | 对应的情况 |
+|---|---|---|
+| 1 | `--table <文件>` 指定的路径 | 你想放哪就放哪 |
+| 2 | `<exe 目录>\Weakness&Resistance.txt` | **标准摆放**（推荐）|
+| 3 | `<exe 目录>\EclipticaHUD-c-DLC\Weakness&Resistance.txt` | exe 放在仓库根目录 |
+| 4 | `<exe 目录>\..\Weakness&Resistance.txt` | exe 放在 `bin\` 之类子目录 |
+| 5 | `<exe 目录>\..\EclipticaHUD-c-DLC\Weakness&Resistance.txt` | 同上，表在 DLC 子目录里 |
+| 6 | `<当前工作目录>\Weakness&Resistance.txt` | 从别处启动 |
+| 7 | `<当前工作目录>\EclipticaHUD-c-DLC\Weakness&Resistance.txt` | 同上 |
+
+两点说明：
+
+- **`--table` 指定了就不回退**：写错了路径就直接报"找不到"，不会偷偷用别的文件，
+  免得你以为改动生效了。
+- 全都找不到时，**面板会直接告诉你该放到哪个目录**，并提示可以用 `--table`：
+
+  ```
+  没找到抗性表文件
+  请把 Weakness&Resistance.txt 放到：
+    D:\...\EclipticaHUD-c-DLC
+  或用 --table 指定它的路径
+  ```
+
+**最省事的做法**：把 exe 和 `Weakness&Resistance.txt` 放在同一个文件夹里（顺序 2）。
+
 每个 Boss 一段，段之间用 `---` 分隔：
 
 ```
@@ -304,7 +333,7 @@ VRChat output_log.txt
 ## 测试与验证
 
 ```bat
-mingw32-make test        :: 逻辑测试（127 项检查）
+mingw32-make test        :: 逻辑测试（143 项检查）
 mingw32-make preview     :: 离屏渲染一张面板预览图，无需显示器
 ```
 

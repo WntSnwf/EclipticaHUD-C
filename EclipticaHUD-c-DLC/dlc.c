@@ -21,6 +21,7 @@
 #include "dlcui.h"
 #include "logtail.h"
 #include "res.h"
+#include "tablepath.h"
 #include "uitext.h"
 #include "compat.h"
 #include <windowsx.h>
@@ -58,13 +59,17 @@ static bool     g_res_ok = false;
 static LogTail  g_tail;
 static DlcLayout g_layout;
 
-/* 数据文件与配置文件的路径（都在 exe 同目录）*/
+/* 抗性表 / 配置文件的实际路径 */
 static wchar_t g_res_path[MAX_PATH];
+static wchar_t g_res_hint[MAX_PATH];   /* 找不到表时，建议用户放到哪个目录 */
+static bool    g_res_forced = false;   /* 是 --table 指定的（不做任何回退）*/
 static wchar_t g_ini_path[MAX_PATH];
 
 /* --boss / --demo 时的固定值 */
 static char     g_forced_boss[64];
 static bool     g_demo = false;
+/* --table 指定的抗性表路径（空 = 按默认顺序查找）*/
+static wchar_t  g_table_arg[MAX_PATH];
 
 /* ---------------- 路径 ---------------- */
 
@@ -82,7 +87,6 @@ static void build_paths(void)
 {
     wchar_t dir[MAX_PATH];
     exe_dir(dir, MAX_PATH);
-    snwprintf_(g_res_path, MAX_PATH, L"%s\\Weakness&Resistance.txt", dir);
     snwprintf_(g_ini_path, MAX_PATH, L"%s\\hr-dlc.ini", dir);
 }
 
@@ -217,6 +221,15 @@ static void build_view(DlcView* v, char* status, int scap, char* logname, int lc
     v->phase = g_cur_phase;
     v->in_fight = g_cur_in_fight;
     v->res = g_cur_res;
+    v->table_ok = g_res_ok;
+    /* 找不到表时告诉用户该放哪儿；--table 指定过就直接显示那个路径 */
+    {
+        char hint[MAX_PATH * 2];
+        const wchar_t* src = g_res_forced ? g_res_path : g_res_hint;
+        WideCharToMultiByte(CP_UTF8, 0, src, -1, hint, sizeof(hint), NULL, NULL);
+        hint[sizeof(hint) - 1] = 0;
+        v->table_dir = hint;
+    }
     logname[0] = 0;
 
     /* 统一用 "%s"：文案里万一带 % 也不会被当成格式符 */
@@ -411,6 +424,11 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR cmdline, int show)
                                         sizeof(g_forced_boss), NULL, NULL);
                     g_forced_boss[sizeof(g_forced_boss) - 1] = 0;
                 } else bad = true;
+            } else if (arg_is(argv[i], L"table")) {
+                if (i + 1 < argc) {
+                    wcsncpy(g_table_arg, argv[++i], MAX_PATH - 1);
+                    g_table_arg[MAX_PATH - 1] = 0;
+                } else bad = true;
             } else if (arg_is(argv[i], L"demo")) {
                 g_demo = true;
             } else if (arg_is(argv[i], L"help") || arg_is(argv[i], L"h")) {
@@ -426,11 +444,17 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR cmdline, int show)
     if (bad) { show_help(); return 0; }
 
     build_paths();
+    /* 抗性表按 tablepath.c 里的顺序查找；--table 指定了就以它为准。
+     * 必须用宽字符版本的加载器：路径里可能有中文，
+     * 先转成 UTF-8 再 fopen 会被按 ANSI 代码页解释，直接打不开文件。*/
     {
-        char path_a[MAX_PATH * 2];
-        WideCharToMultiByte(CP_UTF8, 0, g_res_path, -1, path_a, sizeof(path_a), NULL, NULL);
-        g_res_ok = res_load(&g_res, path_a);
+        TablePath tp;
+        table_find(&tp, g_table_arg[0] ? g_table_arg : NULL, NULL, NULL);
+        snwprintf_(g_res_path, MAX_PATH, L"%s", tp.path);
+        snwprintf_(g_res_hint, MAX_PATH, L"%s", tp.hint);
+        g_res_forced = tp.forced;
     }
+    g_res_ok = (g_res_path[0] != 0) && res_load_w(&g_res, g_res_path);
     {
         int x = -1, y = -1;
         cfg_load_pos(&x, &y);

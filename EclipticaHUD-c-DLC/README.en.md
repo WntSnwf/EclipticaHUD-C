@@ -1,4 +1,4 @@
-# Ecliptica HUD DLC — Boss Weakness / Resistance
+﻿# Ecliptica HUD DLC — Boss Weakness / Resistance
 
 A **small standalone add-on** to the [main program](../README.en.md): it follows the same
 VRChat log, works out **which boss is currently being fought**, and then shows that boss's
@@ -106,6 +106,7 @@ files**; otherwise the other languages fail to build with an undefined symbol.
 hr-dlc.exe                       :: locate the VRChat log automatically and follow it
 hr-dlc.exe --log "D:\...\output_log.txt"   :: watch one specific file
 hr-dlc.exe --boss FlyLord        :: no log, pin one boss (for debugging)
+hr-dlc.exe --table "D:\...\Weakness&Resistance.txt"   :: use this resistance table
 hr-dlc.exe --demo                :: built-in rotating demo, no log needed
 hr-dlc.exe --help
 ```
@@ -115,6 +116,7 @@ hr-dlc.exe --help
 | (none) | Locates the log automatically, **scans it from the start** to establish the current boss, then keeps following |
 | `--log <file>` | Use only this file; retries every 2 seconds if it cannot be opened, and never falls back to auto-location |
 | `--boss <internal name>` | Ignore the log and pin this one (internal name, e.g. `FlyLord`, `YukiPhase2`) |
+| `--table <file>` | Use this resistance table. By default it is located automatically (see [Data file format](#data-file-format)) |
 | `--demo` | Cycles through a few representative bosses, to check that the panel itself works |
 | `--help`, `-h` | Show help |
 
@@ -137,7 +139,37 @@ over automatically.
 
 ## Data file format
 
-The data comes from **`Weakness&Resistance.txt`** (UTF-8) next to the exe.
+The data comes from **`Weakness&Resistance.txt`** (UTF-8). At startup the panel looks for it in the
+order below and **uses the first one it finds**, so it usually finds the file wherever you put it:
+
+| # | Location | When this applies |
+|---|---|---|
+| 1 | the path given to `--table <file>` | you want it somewhere specific |
+| 2 | `<exe folder>\Weakness&Resistance.txt` | **the standard layout** (recommended) |
+| 3 | `<exe folder>\EclipticaHUD-c-DLC\Weakness&Resistance.txt` | the exe sits in the repository root |
+| 4 | `<exe folder>\..\Weakness&Resistance.txt` | the exe sits in a subfolder such as `bin\` |
+| 5 | `<exe folder>\..\EclipticaHUD-c-DLC\Weakness&Resistance.txt` | as above, table in the DLC subfolder |
+| 6 | `<working directory>\Weakness&Resistance.txt` | started from somewhere else |
+| 7 | `<working directory>\EclipticaHUD-c-DLC\Weakness&Resistance.txt` | as above |
+
+Two notes:
+
+- **`--table` disables the fallback.** If the path you gave is wrong, the panel says "not found"
+  rather than quietly using a different file — otherwise you would think your edit had taken
+  effect.
+- When nothing is found, **the panel tells you which folder to put the file in** and mentions
+  `--table`:
+
+  ```
+  Resistance table not found
+  Put Weakness&Resistance.txt in:
+    D:\...\EclipticaHUD-c-DLC
+  or point --table at it
+  ```
+
+**The easiest option** is to keep the exe and `Weakness&Resistance.txt` in the same folder
+(case 2).
+
 One block per boss, blocks separated by `---`:
 
 ```
@@ -307,7 +339,7 @@ VRChat output_log.txt
 ## Tests and verification
 
 ```bat
-mingw32-make test        :: logic tests (127 checks)
+mingw32-make test        :: logic tests (143 checks)
 mingw32-make preview     :: render one panel preview offscreen, no monitor needed
 ```
 

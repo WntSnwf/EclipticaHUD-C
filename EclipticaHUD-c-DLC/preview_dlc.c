@@ -9,7 +9,9 @@
  */
 #include "dlcui.h"
 #include "res.h"
+#include "tablepath.h"
 #include "uitext.h"
+#include "compat.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -52,9 +54,25 @@ int main(int argc, char** argv)
     if (scale > 300) scale = 300;
 
     static ResTable T;
-    bool ok = res_load(&T, tbl);
+    /* 控制台 argv 是 ANSI 编码，先转成宽字符再走宽路径加载器，
+     * 这样路径里有中文也不会打不开（与程序本体一致）。*/
+    wchar_t wtbl[MAX_PATH];
+    MultiByteToWideChar(CP_ACP, 0, tbl, -1, wtbl, MAX_PATH);
+    bool ok = res_load_w(&T, wtbl);
     if (!ok) printf("warning: cannot open %s, rendering as 'no data'\n", tbl);
 
+    /* 读不到表时面板要显示"建议放到哪" —— 这里模拟 exe 同目录 */
+    char tbl_dir[MAX_PATH * 2];
+    {
+        wchar_t exe[MAX_PATH], dir[MAX_PATH];
+        DWORD n = GetModuleFileNameW(NULL, exe, MAX_PATH);
+        if (n > 0 && n < MAX_PATH) {
+            wchar_t* s = wcsrchr(exe, L'\\');
+            if (s) *s = 0;
+            _snwprintf(dir, MAX_PATH, L"%s", exe);
+        } else snwprintf_(dir, MAX_PATH, L".");
+        WideCharToMultiByte(CP_UTF8, 0, dir, -1, tbl_dir, sizeof(tbl_dir), NULL, NULL);
+    }
     DlcLayout L;
     dlcui_layout(&L);
 
@@ -83,6 +101,8 @@ int main(int argc, char** argv)
     disp[0] = 0;
     v.boss_display = disp;
     v.status = TXT_ST_WAITING;
+    v.table_ok = ok;
+    v.table_dir = tbl_dir;
     /* 与运行时一致：只显示时间戳部分（运行时会把 output_log_ 前缀和 .txt 去掉）*/
     v.logname = "2026-10-12_19-00-00";
 
@@ -97,7 +117,7 @@ int main(int argc, char** argv)
         v.in_fight = true;
         v.phase = ph;
         v.res = ok ? res_find(&T, base, ph) : NULL;
-        v.status = v.res ? TXT_ST_LOCKED : TXT_NO_DATA;
+        v.status = !ok ? TXT_ST_NO_TABLE : (v.res ? TXT_ST_LOCKED : TXT_NO_DATA);
     }
 
     SetMapMode(dc, MM_ANISOTROPIC);

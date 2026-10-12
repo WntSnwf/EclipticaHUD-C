@@ -7,6 +7,7 @@
  */
 #include "res.h"
 #include "logtail.h"
+#include "tablepath.h"
 #include "uitext.h"
 #include <math.h>
 #include <stdio.h>
@@ -440,6 +441,129 @@ static void test_notes(void)
     remove(path);
 }
 
+/* 从 exe 目录拼出的绝对路径必须能被加载。
+ * 这是踩过的坑：MSVCRT 的 fopen 按 ANSI 代码页解释路径，把 UTF-8 路径喂进去，
+ * 只要目录名里有中文就打不开文件 —— 而 exe 目录恰恰可能是这种路径，
+ * 表现就是面板上一直显示"找不到 Weakness&Resistance.txt"。 */
+static void test_absolute_path(void)
+{
+    printf("\n=== 绝对路径（目录名含中文）===\n");
+    wchar_t dir[MAX_PATH], wpath[MAX_PATH];
+    DWORD n = GetModuleFileNameW(NULL, dir, MAX_PATH);
+    CHECK(n > 0 && n < MAX_PATH, "拿得到自身 exe 路径");
+    if (n == 0 || n >= MAX_PATH) return;
+    wchar_t* slash = wcsrchr(dir, L'\\');
+    if (slash) *slash = 0;
+    _snwprintf(wpath, MAX_PATH, L"%s\\Weakness&Resistance.txt", dir);
+
+    static ResTable A;
+    bool ok = res_load_w(&A, wpath);
+    CHECK(ok, "宽字符绝对路径能加载（res_load_w）");
+    if (ok) {
+        CHECK(A.n == T.n, "与相对路径加载出的段落数一致");
+        CHECK(A.bad_lines == 0, "绝对路径加载同样没有无法识别的行");
+        const BossRes* b = res_find(&A, "FlyLord", 1);
+        CHECK(b != NULL && fabs(b->v[ELEM_FIRE].mult - 1.25) < 1e-9,
+              "绝对路径加载的内容正确");
+    }
+
+    /* 顺手证明"窄字符 + UTF-8"这条路确实不通 */
+    char u8[MAX_PATH * 3];
+    WideCharToMultiByte(CP_UTF8, 0, wpath, -1, u8, sizeof(u8), NULL, NULL);
+    bool ascii_only = true;
+    for (const char* p = u8; *p; p++)
+        if ((unsigned char)*p >= 0x80) { ascii_only = false; break; }
+    if (!ascii_only) {
+        static ResTable B;
+        CHECK(!res_load(&B, u8), "UTF-8 窄路径打不开（目录名含非 ASCII）");
+    } else {
+        printf("skip: 当前路径全是 ASCII，窄路径的失败复现不出来\n");
+    }
+}
+
+/* 抗性表的查找顺序。这块最容易悄悄改坏 —— 坏了也只是"面板说找不到表"，
+ * 所以把每种摆放都显式钉一遍。 */
+static void test_table_lookup(void)
+{
+    printf("\n=== 抗性表查找顺序 ===\n");
+
+    wchar_t tmp[MAX_PATH], base[MAX_PATH];
+    if (!GetTempPathW(MAX_PATH, tmp)) { CHECK(false, "拿不到临时目录"); return; }
+    _snwprintf(base, MAX_PATH, L"%shr_dlc_test_%lu", tmp, (unsigned long)GetCurrentProcessId());
+
+    wchar_t exe[MAX_PATH], up[MAX_PATH], cwd[MAX_PATH];
+    _snwprintf(exe, MAX_PATH, L"%s\\exe", base);
+    _snwprintf(up,  MAX_PATH, L"%s", base);
+    _snwprintf(cwd, MAX_PATH, L"%s\\cwd", base);
+    wchar_t sub[MAX_PATH];
+    _snwprintf(sub, MAX_PATH, L"%s\\%s", exe, TABLE_SUBDIR);
+
+    CreateDirectoryW(base, NULL);
+    CreateDirectoryW(exe, NULL);
+    CreateDirectoryW(cwd, NULL);
+    CreateDirectoryW(sub, NULL);
+
+    wchar_t p_exe[MAX_PATH], p_sub[MAX_PATH], p_cwd[MAX_PATH], p_up[MAX_PATH];
+    _snwprintf(p_exe, MAX_PATH, L"%s\\%s", exe, TABLE_FILE_NAME);
+    _snwprintf(p_sub, MAX_PATH, L"%s\\%s", sub, TABLE_FILE_NAME);
+    _snwprintf(p_cwd, MAX_PATH, L"%s\\%s", cwd, TABLE_FILE_NAME);
+    _snwprintf(p_up,  MAX_PATH, L"%s\\%s", up,  TABLE_FILE_NAME);
+
+    TablePath tp;
+    const wchar_t* dummy = L"notepad";
+
+    /* 一个都没有 -> 找不到，并且给出"建议放哪" */
+    table_find(&tp, NULL, exe, cwd);
+    CHECK(tp.path[0] == 0, "哪都没有时 -> 找不到");
+    CHECK(tp.hint[0] != 0 && wcsstr(tp.hint, L"exe") != NULL, "给出建议目录（exe 同目录）");
+
+    /* 2. exe 同目录 */
+    FILE* f = _wfopen(p_exe, L"wb"); fputs("x", f); fclose(f);
+    table_find(&tp, NULL, exe, cwd);
+    CHECK(wcscmp(tp.path, p_exe) == 0, "exe 同目录优先");
+    _wremove(p_exe);
+
+    /* 3. exe 下的 DLC 子目录 */
+    f = _wfopen(p_sub, L"wb"); fputs("x", f); fclose(f);
+    table_find(&tp, NULL, exe, cwd);
+    CHECK(wcscmp(tp.path, p_sub) == 0, "exe\\EclipticaHUD-c-DLC\\ 命中");
+
+    /* 6/7. 当前工作目录 —— 应该排在 exe 相关位置之后
+     * 先放 cwd，确认命中；再放 exe 同目录，确认 exe 优先 */
+    f = _wfopen(p_cwd, L"wb"); fputs("x", f); fclose(f);
+    table_find(&tp, NULL, exe, cwd);
+    CHECK(wcscmp(tp.path, p_sub) == 0, "exe 侧优先于 cwd");
+    _wremove(p_sub);
+    table_find(&tp, NULL, exe, cwd);
+    CHECK(wcscmp(tp.path, p_cwd) == 0, "exe 侧没有时退到 cwd");
+
+    /* 4. 上一级目录 */
+    f = _wfopen(p_up, L"wb"); fputs("x", f); fclose(f);
+    table_find(&tp, NULL, exe, cwd);
+    CHECK(wcscmp(tp.path, p_up) == 0, "上一级目录优先于 cwd");
+    _wremove(p_up);
+    _wremove(p_cwd);
+
+    /* 1. --table 指定：有就只用它 */
+    f = _wfopen(p_cwd, L"wb"); fputs("x", f); fclose(f);
+    table_find(&tp, p_cwd, exe, cwd);
+    CHECK(tp.forced, "--table 标记为 forced");
+    CHECK(wcscmp(tp.path, p_cwd) == 0, "--table 生效");
+    /* 指定了不存在的文件 -> 不回退（免得用户以为生效了）*/
+    wchar_t gone[MAX_PATH];
+    _snwprintf(gone, MAX_PATH, L"%s\\nope.txt", base);
+    table_find(&tp, gone, exe, cwd);
+    CHECK(tp.path[0] == 0, "--table 指向不存在的文件 -> 不回退到别的路径");
+
+    /* 清理 */
+    _wremove(p_cwd);
+    RemoveDirectoryW(sub);
+    RemoveDirectoryW(cwd);
+    RemoveDirectoryW(exe);
+    RemoveDirectoryW(base);
+    (void)dummy;
+}
+
 int main(int argc, char** argv)
 {
     if (argc > 2 && !strcmp(argv[1], "--log")) return probe_log(argv[2]);
@@ -457,6 +581,8 @@ int main(int argc, char** argv)
     test_names();
     test_notes();
     test_cn_keys();
+    test_absolute_path();
+    test_table_lookup();
 
     printf("\n%s：%d 项检查，%d 项失败\n", fails ? "失败" : "全部通过", checks, fails);
     return fails ? 1 : 0;

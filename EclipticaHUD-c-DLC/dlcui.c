@@ -152,6 +152,30 @@ static void fit(HDC dc, HFONT f, char* s, int maxpx)
     }
 }
 
+/* 裁路径专用：太长时**砍掉开头**保留结尾（结尾那段目录名才是有用的），
+ * 并在前面加省略号。fit() 是砍尾，对路径正好把关键信息砍掉了。 */
+static void fit_path(HDC dc, HFONT f, char* s, int maxpx)
+{
+    if (maxpx <= 0) { s[0] = 0; return; }
+    if (tw(dc, f, s) <= maxpx) return;
+    static const char* ELL = "…";
+    size_t n = strlen(s);
+    while (n > 0) {
+        /* 从开头丢掉一个 UTF-8 字符 */
+        size_t step = 1;
+        unsigned char c = (unsigned char)s[0];
+        if (c >= 0xF0) step = 4; else if (c >= 0xE0) step = 3;
+        else if (c >= 0xC0) step = 2;
+        if (step > n) step = n;
+        memmove(s, s + step, n - step + 1);
+        n -= step;
+        char tmp[256];
+        snprintf(tmp, sizeof(tmp), "%s%s", ELL, s);
+        if (tw(dc, f, tmp) <= maxpx) { snprintf(s, n + 1, "%s", tmp); return; }
+    }
+    snprintf(s, 4, "%s", ELL);
+}
+
 /* 把长文本按宽度折行写入 out（最多 max_lines 行），返回实际行数 */
 static int wrap(HDC dc, HFONT f, const char* text, int maxpx, char out[][160], int max_lines)
 {
@@ -354,6 +378,22 @@ void dlcui_paint(HDC dc, const DlcLayout* L, const DlcView* v, int hover_close, 
                 tx(dc, (DLC_W - tw(dc, g_f_body, lines[i])) / 2, y, g_f_body, C_FAINT, lines[i]);
                 y += 18;
             }
+        } else if (!v->table_ok) {
+            /* 表根本没读到 —— 这和"表里没有这只 Boss"是两回事，要分开提示，
+             * 并且告诉用户该把文件放到哪儿。 */
+            int y = L->row_y;
+            tx(dc, PAD + 2, y, g_f_body, C_WARN, TXT_NO_TABLE_BODY);
+            y += 20;
+            tx(dc, PAD + 2, y, g_f_small, C_DIM, TXT_NO_TABLE_PUT);
+            y += 16;
+            if (v->table_dir && v->table_dir[0]) {
+                char path[256];
+                snprintf(path, sizeof(path), "%s", v->table_dir);
+                fit_path(dc, g_f_small, path, DLC_W - PAD * 2 - 12);
+                tx(dc, PAD + 8, y, g_f_small, C_ACCENT, path);
+                y += 18;
+            }
+            tx(dc, PAD + 2, y, g_f_small, C_FAINT, TXT_NO_TABLE_OR);
         } else if (!v->res) {
             tx(dc, PAD + 2, L->row_y + 6, g_f_body, C_WARN, TXT_NO_DATA);
             tx(dc, PAD + 2, L->row_y + 26, g_f_small, C_FAINT, TXT_NO_DATA_HINT);

@@ -19,6 +19,7 @@
 #define RES_H
 
 #include <stdbool.h>
+#include <wchar.h>
 
 /* 七个元素，顺序与数据文件一致 */
 typedef enum {
@@ -75,8 +76,14 @@ const char* res_elem_name(int elem);
 /* 元素在数据文件里的规范英文键："Physical" … "Poison" */
 const char* res_elem_key(int elem);
 
-/* 读取数据文件；成功返回 true。失败时 t 被清空。 */
+/* 读取数据文件；成功返回 true。失败时 t 被清空。
+ *
+ * res_load  收窄字符路径 —— 只适合纯 ASCII 或"控制台 ANSI 编码"的路径。
+ * res_load_w 收宽字符路径 —— **从 exe 目录拼出来的绝对路径必须用它**：
+ *   MSVCRT 的 fopen 按 ANSI 代码页解释路径，把 UTF-8 路径喂进去，
+ *   只要目录名里有中文就会打不开文件（本程序就踩过这个坑）。 */
 bool res_load(ResTable* t, const char* path);
+bool res_load_w(ResTable* t, const wchar_t* path);
 
 /* Boss 内部名 -> 数据文件里用的显示名（未收录则原样返回）。
  * 与本体程序 names.c 的 Boss 映射表保持一致。 */

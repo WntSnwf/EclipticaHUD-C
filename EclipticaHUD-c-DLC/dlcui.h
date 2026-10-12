@@ -30,6 +30,8 @@ typedef struct {
     int         phase;          /* 形态号，>1 时在名字后标注 */
     bool        in_fight;
     const BossRes* res;         /* 查到的抗性条目；NULL = 没数据 */
+    bool        table_ok;       /* 抗性表本身读到了没有（没读到 = 要提示用户去放）*/
+    const char* table_dir;      /* 读不到表时，建议把它放到哪个目录 */
     const char* status;         /* 底部状态文字 */
     const char* logname;        /* 右下角日志名 */
 } DlcView;

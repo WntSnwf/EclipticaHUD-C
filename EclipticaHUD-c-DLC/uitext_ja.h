@@ -16,6 +16,10 @@
 #define TXT_WAITING       "ボス戦を待っています…"
 #define TXT_NO_DATA       "データ表にこのボスがありません"
 #define TXT_NO_DATA_HINT  "Weakness&Resistance.txt に追記してください"
+/* 耐性表そのものが読めなかった場合（「表にこのボスがいない」とは別物）*/
+#define TXT_NO_TABLE_BODY "耐性表が見つかりません"
+#define TXT_NO_TABLE_PUT  "Weakness&Resistance.txt を次に置いてください："
+#define TXT_NO_TABLE_OR   "または --table でパスを指定"
 
 /* 弱点 / 耐性のマーク（数値あり）*/
 #define TXT_MARK_WEAK     "▲ 弱点"
@@ -58,6 +62,7 @@
     "  " TXT_EXE_NAME "                 VRChat のログを追跡\n" \
     "  " TXT_EXE_NAME " --log FILE      このログファイルだけを見る\n" \
     "  " TXT_EXE_NAME " --boss NAME     ボスを固定（内部名。例: FlyLord）\n" \
+    "  " TXT_EXE_NAME " --table FILE    耐性表を指定（既定は exe と同じ階層などを自動検索）\n" \
     "  " TXT_EXE_NAME " --demo          ログ不要のデモ表示\n" \
     "  " TXT_EXE_NAME " --help          このヘルプを表示\n" \
     "\n" \

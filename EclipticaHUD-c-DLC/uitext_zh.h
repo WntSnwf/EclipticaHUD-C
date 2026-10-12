@@ -16,6 +16,10 @@
 #define TXT_WAITING       "等待 Boss 战…"
 #define TXT_NO_DATA       "数据表里没有这只 Boss"
 #define TXT_NO_DATA_HINT  "可在 Weakness&Resistance.txt 里补一段"
+/* 抗性表整个没读到时的提示（和"表里缺这只 Boss"是两回事）*/
+#define TXT_NO_TABLE_BODY "没找到抗性表文件"
+#define TXT_NO_TABLE_PUT  "请把 Weakness&Resistance.txt 放到："
+#define TXT_NO_TABLE_OR   "或用 --table 指定它的路径"
 
 /* 倍率后的强弱标记（数值型）*/
 #define TXT_MARK_WEAK     "▲ 弱"
@@ -58,6 +62,7 @@
     "  " TXT_EXE_NAME "                 跟随 VRChat 实时日志\n" \
     "  " TXT_EXE_NAME " --log FILE      只看指定日志文件\n" \
     "  " TXT_EXE_NAME " --boss NAME     固定显示某只 Boss（内部名，如 FlyLord）\n" \
+    "  " TXT_EXE_NAME " --table FILE    指定抗性表（默认在 exe 同目录等处自动查找）\n" \
     "  " TXT_EXE_NAME " --demo          轮播演示，不需要日志\n" \
     "  " TXT_EXE_NAME " --help          显示本帮助\n" \
     "\n" \

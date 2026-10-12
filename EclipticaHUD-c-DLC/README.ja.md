@@ -1,4 +1,4 @@
-# Ecliptica HUD DLC — ボスの弱点 / 耐性の早見表
+﻿# Ecliptica HUD DLC — ボスの弱点 / 耐性の早見表
 
 [本体プログラム](../README.ja.md) の**独立した小さなアドオン**です。同じ VRChat のログを追い、
 **現在どのボスと戦っているか**を判別して、`Weakness&Resistance.txt` の対応する
@@ -97,6 +97,7 @@ build.bat ja                  :: MSVC：日本語
 hr-dlc.exe                       :: VRChat のログを自動で見つけて追随
 hr-dlc.exe --log "D:\...\output_log.txt"   :: 指定したファイルだけを見る
 hr-dlc.exe --boss FlyLord        :: ログを読まず、特定のボスを固定表示（デバッグ用）
+hr-dlc.exe --table "D:\...\Weakness&Resistance.txt"  :: 耐性表を指定
 hr-dlc.exe --demo                :: 内蔵の輪播デモです。ログは不要
 hr-dlc.exe --help
 ```
@@ -106,6 +107,7 @@ hr-dlc.exe --help
 | （なし） | ログを自動で見つけ、**まず先頭から一度スキャン**して現在のボスを確定してから追随を続ける |
 | `--log <ファイル>` | このファイルだけを使う。開けないときは 2 秒ごとに再試行し、自動探索には戻らない |
 | `--boss <内部名>` | ログを無視し、この 1 体を固定表示（内部名。例：`FlyLord`、`YukiPhase2`）|
+| `--table <ファイル>` | 耐性表を指定。既定では自動で探す（[データファイル形式](#データファイル形式) を参照）|
 | `--demo` | 代表的なボスを順に輪播し、パネル自体が正常か確認する |
 | `--help`、`-h` | ヘルプを表示 |
 
@@ -127,7 +129,35 @@ VRChat がセッションを切り替えたとき（ディレクトリ内に新�
 
 ## データファイル形式
 
-データは exe と同じディレクトリの **`Weakness&Resistance.txt`**（UTF-8）から読みます。
+データは **`Weakness&Resistance.txt`**（UTF-8）から読みます。パネルは起動時に以下の順で探し、
+**最初に見つかったものを使います** —— なので、どこに置いてもたいてい自動で見つかります：
+
+| # | 場所 | どんなとき |
+|---|---|---|
+| 1 | `--table <ファイル>` で指定したパス | 好きな場所に置きたいとき |
+| 2 | `<exe と同じ階層>\Weakness&Resistance.txt` | **標準の置き方**（おすすめ）|
+| 3 | `<exe と同じ階層>\EclipticaHUD-c-DLC\Weakness&Resistance.txt` | exe をリポジトリ直下に置いた場合 |
+| 4 | `<exe と同じ階層>\..\Weakness&Resistance.txt` | exe を `bin\` などのサブフォルダに置いた場合 |
+| 5 | `<exe と同じ階層>\..\EclipticaHUD-c-DLC\Weakness&Resistance.txt` | 同上、表が DLC サブフォルダにある場合 |
+| 6 | `<カレントディレクトリ>\Weakness&Resistance.txt` | 別の場所から起動した場合 |
+| 7 | `<カレントディレクトリ>\EclipticaHUD-c-DLC\Weakness&Resistance.txt` | 同上 |
+
+補足 2 点：
+
+- **`--table` を指定するとフォールバックしません。** パスを間違えると「見つかりません」と
+  出るだけで、黙って別のファイルを使うことはありません（編集が効いたと誤解しないため）。
+- どれも見つからないときは、**パネルが「どこに置けばよいか」を直接表示**し、
+  `--table` の存在も案内します：
+
+  ```
+  耐性表が見つかりません
+  Weakness&Resistance.txt を次に置いてください：
+    D:\...\EclipticaHUD-c-DLC
+  または --table でパスを指定
+  ```
+
+**いちばん簡単なのは**、exe と `Weakness&Resistance.txt` を同じフォルダに置くことです（2 番）。
+
 ボス 1 体につき 1 段落、段落の区切りは `---` です：
 
 ```
@@ -291,7 +321,7 @@ VRChat output_log.txt
 ## テストと検証
 
 ```bat
-mingw32-make test        :: ロジックテスト（127 項のチェック）
+mingw32-make test        :: ロジックテスト（143 項のチェック）
 mingw32-make preview     :: パネルのプレビュー画像をオフスクリーン描画。ディスプレイ不要
 ```
 

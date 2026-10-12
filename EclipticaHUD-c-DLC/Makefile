@@ -37,7 +37,7 @@ CFLAGS  += $(LANGDEF)
 LDFLAGS ?= -mwindows
 LIBS     = -lgdi32 -luser32
 
-SRCS = dlc.c dlcui.c logtail.c res.c
+SRCS = dlc.c dlcui.c logtail.c res.c tablepath.c
 OBJDIR = build/$(LANG)
 OBJS = $(patsubst %.c,$(OBJDIR)/%.o,$(SRCS))
 # 头文件也作为依赖：改了 uitext_*.h 里的文案必须触发重编
@@ -47,8 +47,8 @@ TARGET  = hr-dlc$(SUF).exe
 TESTBIN = test_dlc$(SUF).exe
 PREVBIN = preview_dlc$(SUF).exe
 
-TEST_SRCS = test_dlc.c res.c logtail.c
-PREV_SRCS = preview_dlc.c dlcui.c res.c
+TEST_SRCS = test_dlc.c res.c logtail.c tablepath.c
+PREV_SRCS = preview_dlc.c dlcui.c res.c tablepath.c
 
 ifeq ($(OS),Windows_NT)
   RUN   =

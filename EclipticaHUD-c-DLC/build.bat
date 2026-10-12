@@ -1,4 +1,4 @@
-﻿@echo off
+@echo off
 rem Ecliptica HUD DLC - MSVC build script
 rem
 rem   build.bat            中文版 -> hr-dlc.exe
@@ -17,7 +17,7 @@ if /i "%LANG%"=="en" (set "LANGDEF=/DUI_LANG_EN" & set "SUF=-en")
 if /i "%LANG%"=="ja" (set "LANGDEF=/DUI_LANG_JA" & set "SUF=-ja")
 if not defined SUF if /i not "%LANG%"=="zh" goto :badlang
 
-set "SRC=dlc.c dlcui.c logtail.c res.c"
+set "SRC=dlc.c dlcui.c logtail.c res.c tablepath.c"
 
 echo [1/2] Building hr-dlc%SUF%.exe (LANG=%LANG%) ...
 cl /nologo /O2 /W3 /std:c11 /DUNICODE /D_UNICODE /utf-8 %LANGDEF% ^
@@ -28,14 +28,14 @@ if errorlevel 1 goto :fail
 
 echo [2/2] Building logic tests test_dlc%SUF%.exe ...
 cl /nologo /O2 /W3 /std:c11 /utf-8 %LANGDEF% ^
-   test_dlc.c res.c logtail.c ^
+   test_dlc.c res.c logtail.c tablepath.c ^
    /Fe:test_dlc%SUF%.exe
 if errorlevel 1 goto :fail
 
 del /q *.obj >nul 2>nul
 echo.
 echo Done: hr-dlc%SUF%.exe / test_dlc%SUF%.exe
-echo Run .\test_dlc%SUF%.exe to execute the 127 logic checks.
+echo Run .\test_dlc%SUF%.exe to execute the 143 logic checks.
 exit /b 0
 
 :badlang
