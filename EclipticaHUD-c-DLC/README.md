@@ -1,6 +1,6 @@
 # Ecliptica HUD DLC — Boss 弱点 / 抗性速查
 
-[本体程序](../README.md) 的一个**独立小外挂**：它跟随同一份 VRChat 日志，
+[本体程序](../README.md) 的一个**独立DLC**：它跟随同一份 VRChat 日志，
 认出**当前正在打哪只 Boss**，然后把 `Weakness&Resistance.txt` 里对应的
 **弱点 / 抗性**显示成一小块置顶面板。
 
