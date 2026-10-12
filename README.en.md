@@ -21,6 +21,7 @@ modification, no OSC required**. Implemented in pure C + Win32/GDI, linked only 
 
 - [Features](#features)
 - [Quick start](#quick-start)
+- [Companion DLC](#companion-dlc-boss-weakness--resistance-panel)
 - [Command-line options](#command-line-options)
 - [Interface controls](#interface-controls)
 - [Configuration file](#configuration-file)
@@ -35,6 +36,9 @@ modification, no OSC required**. Implemented in pure C + Win32/GDI, linked only 
 
 > 🌐 **Language 言語 语言**：
 > [简体中文](README.md) · [English](README.en.md) · [日本語](README.ja.md)
+
+> 🧩 **Companion DLC**: the [boss weakness / resistance panel](EclipticaHUD-c-DLC/README.en.md) —
+> a separate little program that shows the current boss's weaknesses and resistances.
 
 > 📖 **Just want to use it?** See [USAGE.en.md](USAGE.en.md) — a block-by-block walkthrough
 > of the interface, how to change every setting (including **how to change the DPS window**),
@@ -169,6 +173,37 @@ ecliptica-hud-c.exe --demo
 
 For detailed instructions (what every part of the interface means, how to change each
 setting, how to troubleshoot common problems) see **[USAGE.en.md](USAGE.en.md)**.
+
+---
+
+## Companion DLC: boss weakness / resistance panel
+
+The repository also ships a **small standalone add-on**,
+[Ecliptica HUD DLC](EclipticaHUD-c-DLC/README.en.md):
+
+> It follows the same VRChat log, works out **which boss is currently being fought**, then looks
+> up that boss's **weaknesses / resistances** in `Weakness&Resistance.txt` and shows them as a
+> small always-on-top panel.
+
+```
+Boss  Beelzebub
+Physical      1x
+Fire       1.25x  ▲ WEAK     <- warm colour
+Frost      0.75x  ▼ RES      <- cool colour
+Electric      1x
+Luminous    0.5x  ▼ RES
+Shadow      1.5x  ▲ WEAK
+Poison      0.5x  ▼ RES
+```
+
+- **It is a separate program: it neither modifies nor depends on the main HUD.** You can run both
+  at once; they read the same log independently.
+- Like the main HUD it comes in **Chinese / English / Japanese**:
+  `hr-dlc.exe` / `hr-dlc-en.exe` / `hr-dlc-ja.exe`.
+- The resistance data lives in `Weakness&Resistance.txt` inside its own folder — plain text,
+  maintained by you.
+
+See **[EclipticaHUD-c-DLC/README.en.md](EclipticaHUD-c-DLC/README.en.md)** for the details.
 
 ---
 

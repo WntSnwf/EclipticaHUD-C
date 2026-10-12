@@ -21,6 +21,7 @@ VRChat 世界 **Ecliptica** 的战斗统计覆盖层：跟随 VRChat 日志，�
 - [特性](#特性)
 - [快速开始](#快速开始)
 - [多语言版本](#多语言版本)
+- [配套 DLC](#配套-dlcboss-弱点--抗性面板)
 - [命令行参数](#命令行参数)
 - [界面操作](#界面操作)
 - [配置文件](#配置文件)
@@ -35,6 +36,9 @@ VRChat 世界 **Ecliptica** 的战斗统计覆盖层：跟随 VRChat 日志，�
 
 > 🌐 **语言 Language 言語**：
 > [简体中文](README.md) · [English](README.en.md) · [日本語](README.ja.md)
+
+> 🧩 **配套 DLC**：[Boss 弱点 / 抗性面板](EclipticaHUD-c-DLC/README.md) ——
+> 独立小程序，跟着当前 Boss 显示弱点与抗性。
 
 > 📖 **只想上手使用？** 请看 [使用说明.md](使用说明.md) —— 逐块讲解界面、
 > 每项设置怎么改（含 **DPS 统计时间的调整方式**）、常见问题排查。
@@ -186,6 +190,33 @@ ecliptica-hud-c.exe --demo
 ```
 
 详细操作（界面每一块的含义、每项设置怎么改、常见问题排查）见 **[使用说明.md](使用说明.md)**。
+
+---
+
+## 配套 DLC：Boss 弱点 / 抗性面板
+
+本仓库还有一个**独立的DLC** [Ecliptica HUD DLC](EclipticaHUD-c-DLC/README.md)：
+
+> 跟随同一份 VRChat 日志，认出**当前正在打哪只 Boss**，然后从 `Weakness&Resistance.txt`
+> 查出对应的**弱点 / 抗性**，显示成一小块置顶面板。
+
+```
+当前 Boss  Beelzebub
+物            1x
+火         1.25x  ▲ 弱      ← 暖色
+冰         0.75x  ▼ 抗      ← 冷色
+电            1x
+光          0.5x  ▼ 抗
+暗          1.5x  ▲ 弱
+毒          0.5x  ▼ 抗
+```
+
+- **它是独立程序，不修改也不依赖本体**：两个程序可以同时开，各读同一份日志，互不影响。
+- 与本体一样有**中文 / English / 日本語**三个版本：
+  `hr-dlc.exe` / `hr-dlc-en.exe` / `hr-dlc-ja.exe`。
+- 抗性数据来自它自己目录下的 `Weakness&Resistance.txt`（纯文本，自己维护）。
+
+详见 **[EclipticaHUD-c-DLC/README.md](EclipticaHUD-c-DLC/README.md)**。
 
 ---
 

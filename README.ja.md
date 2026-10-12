@@ -23,6 +23,7 @@ VRChat ワールド **Ecliptica** の戦闘統計オーバーレイ：VRChat の
 - [機能](#機能)
 - [クイックスタート](#クイックスタート)
 - [多言語版](#多言語版)
+- [関連 DLC](#関連-dlcボスの弱点--耐性パネル)
 - [コマンドライン引数](#コマンドライン引数)
 - [画面操作](#画面操作)
 - [設定ファイル](#設定ファイル)
@@ -37,6 +38,9 @@ VRChat ワールド **Ecliptica** の戦闘統計オーバーレイ：VRChat の
 
 > 🌐 **言語 Language 语言**：
 > [简体中文](README.md) · [English](README.en.md) · [日本語](README.ja.md)
+
+> 🧩 **関連 DLC**：[ボスの弱点 / 耐性パネル](EclipticaHUD-c-DLC/README.ja.md) ——
+> 現在のボスの弱点と耐性を表示する独立した小さなプログラムです。
 
 > 📖 **とにかく使ってみたい方へ。** [USAGE.ja.md](USAGE.ja.md) をどうぞ —— 画面の各ブロックの
 > 意味、各設定の変え方（**DPS 集計時間の調整方法**を含む）、よくあるトラブルの調べ方を
@@ -197,6 +201,37 @@ ecliptica-hud-c.exe --demo
 
 詳しい操作（画面の各ブロックの意味、各設定の変え方、よくあるトラブルの調べ方）は
 **[USAGE.ja.md](USAGE.ja.md)** を参照してください。
+
+---
+
+## 関連 DLC：ボスの弱点 / 耐性パネル
+
+このリポジトリには**独立した小さなアドオン** [Ecliptica HUD DLC](EclipticaHUD-c-DLC/README.ja.md)
+も同梱されています：
+
+> 同じ VRChat のログを追い、**現在戦っているボス**を判定して、
+> `Weakness&Resistance.txt` から対応する**弱点 / 耐性**を引いて、
+> 小さな常時最前面パネルに表示します。
+
+```
+現在のボス  Beelzebub
+物理          1x
+火         1.25x  ▲ 弱点     ← 暖色
+氷         0.75x  ▼ 耐性     ← 寒色
+電気          1x
+光          0.5x  ▼ 耐性
+闇          1.5x  ▲ 弱点
+毒          0.5x  ▼ 耐性
+```
+
+- **独立したプログラムで、本体を改変も依存もしません。** 2 つ同時に起動でき、
+  それぞれが同じログを読みます。
+- 本体と同じく**簡体中文 / English / 日本語**の 3 版があります：
+  `hr-dlc.exe` / `hr-dlc-en.exe` / `hr-dlc-ja.exe`。
+- 耐性データは DLC 側のフォルダにある `Weakness&Resistance.txt`（プレーンテキスト、
+  自分で保守するもの）から読みます。
+
+詳しくは **[EclipticaHUD-c-DLC/README.ja.md](EclipticaHUD-c-DLC/README.ja.md)** を参照。
 
 ---
 

@@ -1,0 +1,68 @@
+/* uitext_en.h - UI strings: English */
+#ifndef UITEXT_EN_H
+#define UITEXT_EN_H
+
+/* Prefix for note lines meant for this language only ("en: All damage blocked.").
+ * Untagged note lines are shown by every language build. */
+#define TXT_LANG_TAG      "en"
+
+/* Title / subtitle */
+#define TXT_SUBTITLE      "Weakness / Resistance"
+
+/* Boss row */
+#define TXT_BOSS_LBL      "Boss"
+
+/* Body */
+#define TXT_WAITING       "Waiting for a boss fight…"
+#define TXT_NO_DATA       "No entry for this boss"
+#define TXT_NO_DATA_HINT  "Add one in Weakness&Resistance.txt"
+
+/* Weak / resist markers (numeric entries) */
+#define TXT_MARK_WEAK     "▲ WEAK"
+#define TXT_MARK_RESIST   "▼ RES"
+/* Shown when the data file only says 1+x / 1-x */
+#define TXT_VAL_WEAK      "WEAK"
+#define TXT_VAL_RESIST    "RES"
+
+/* Element names as shown on the panel (the data file accepts English keys too) */
+#define TXT_ELEM_DISPLAY  { "Physical", "Fire", "Frost", "Electric", \
+                            "Luminous", "Shadow", "Poison" }
+
+/* Status bar */
+#define TXT_ST_FORCED     "Fixed boss (--boss)"
+#define TXT_ST_DEMO       "Demo mode"
+#define TXT_ST_NO_TABLE   "Weakness&Resistance.txt not found"
+#define TXT_ST_NO_LOG     "No VRChat log found"
+#define TXT_ST_LOCKED     "Boss locked"
+#define TXT_ST_WAITING    "Waiting for a boss fight"
+
+/* ---- test_dlc-en.exe --log probe output labels (console diagnostics) ---- */
+#define TXT_P_LOG         "Log file   :"
+#define TXT_P_FIGHTING    "Now fighting:"
+#define TXT_P_DISPLAY     "Display name:"
+#define TXT_P_PHASE       "Phase      :"
+#define TXT_P_QUERY       "Lookup key :"
+#define TXT_P_ENTRY       "Entry      :"
+#define TXT_P_NOTE        "Note       :"
+#define TXT_P_NONE        "(no boss fight)"
+#define TXT_P_MISSING     "(no entry for this boss)"
+#define TXT_P_NOMULT      " (no multiplier given)"
+#define TXT_P_OPENFAIL    "Cannot open log: %s"
+#define TXT_P_LOADED      "Loaded %s: %d boss entries"
+
+/* Help */
+#define TXT_EXE_NAME      "hr-dlc-en.exe"
+#define TXT_HELP_TITLE    "Ecliptica HUD DLC - Help"
+#define TXT_HELP_BODY \
+    "Ecliptica HUD DLC - Boss weakness / resistance panel\n" \
+    "\n" \
+    "  " TXT_EXE_NAME "                 follow the live VRChat log\n" \
+    "  " TXT_EXE_NAME " --log FILE      use only this log file\n" \
+    "  " TXT_EXE_NAME " --boss NAME     pin one boss (internal name, e.g. FlyLord)\n" \
+    "  " TXT_EXE_NAME " --demo          rotating demo, no log needed\n" \
+    "  " TXT_EXE_NAME " --help          show this help\n" \
+    "\n" \
+    "Data comes from Weakness&Resistance.txt next to the exe.\n" \
+    "Drag the panel to move it; click X to close; Ctrl+Alt+W to quit.\n"
+
+#endif
