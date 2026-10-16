@@ -161,7 +161,7 @@ Poison: 1.25x
 ---
 Despair
 Physical: 1x
-Fire: 1.15x
+Fire: 1x
 Frost: 1.25x
 Electric: 0.7x
 Luminous: 1.25x
