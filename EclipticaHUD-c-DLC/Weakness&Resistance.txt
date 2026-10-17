@@ -295,9 +295,13 @@ Shadow: 1.25x
 Poison: 1x
 ---
 Jim C. Bringer(P1)
-zh: 没有弱点，也没有抗性。
-en: No weaknesses and resistances.
-ja: 弱点も耐性もありません。
+Physical: 1x
+Fire: 1x
+Frost: 1x
+Electric: 1x
+Luminous: 1x
+Shadow: 1x
+Poison: 1x
 ---
 Jim C. Bringer(P2)
 zh: 免疫所有伤害。
