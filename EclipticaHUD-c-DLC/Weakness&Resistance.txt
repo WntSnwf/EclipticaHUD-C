@@ -159,11 +159,20 @@ Luminous: 0.75x
 Shadow: 1.25x
 Poison: 1.25x
 ---
-Despair
+Despair(P1)
 Physical: 1x
 Fire: 1x
 Frost: 1.25x
 Electric: 0.7x
+Luminous: 1.25x
+Shadow: 0.85x
+Poison: 1.1x
+---
+Despair(P2)
+Physical: 1x
+Fire: 1x
+Frost: 1.25x
+Electric: 0.7-x (resist)
 Luminous: 1.25x
 Shadow: 0.85x
 Poison: 1.1x
@@ -307,6 +316,15 @@ Jim C. Bringer(P2)
 zh: 免疫所有伤害。
 en: All damage blocked.
 ja: すべてのダメージを無効化します。
+zh: 战斗开始2 分钟后，4 座 Signal Tower 会落在竞技场四角。
+en: Once 2 minutes have passed, 4 Signal Towers will drop in each corner of the arena.
+ja: 戦闘開始から2分後、4つのシグナルタワーがアリーナの四隅に出現します。
+zh: 玩家必须站在这些 Signal Tower 内为其充能。
+en: Players must stand inside these Signal Towers to charge them.
+ja: プレイヤーはこれらのシグナルタワーの中に立って充電する必要があります。
+zh: 全部 4 座 Signal Tower 充能完成后，轨道打击会落在 Flipper 上并将其摧毁。
+en: Once all 4 Signal Towers have been charged, an orbital strike will land on the Flipper, destroying it.
+ja: 4つのシグナルタワーすべての充電が完了すると、軌道攻撃がフリッパーに落ちて破壊されます。
 ---
 Jim C. Bringer(P3)
 Physical: 1x

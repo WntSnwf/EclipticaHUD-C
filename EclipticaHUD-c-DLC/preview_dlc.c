@@ -44,12 +44,17 @@ static void write_bmp(const char* path, int w, int h, const void* bits)
 
 int main(int argc, char** argv)
 {
+    /* 参数：<表文件> <Boss 名|-> [缩放%] [输出.bmp]
+     *
+     * **没有单独的形态号参数** —— 形态号由 Boss 名自己带（YukiPhase2 /
+     * Jim C. Bringer(P2)），和程序本体走同一个解析函数。
+     * 早先这里多一个"形态号"位置参数，它会盖掉解析出来的形态号，
+     * 结果预览显示的是 P1、程序显示的是 P3 —— 正好掩盖掉 --boss 的 bug。*/
     const char* tbl = argc > 1 ? argv[1] : "Weakness&Resistance.txt";
     const char* boss = argc > 2 ? argv[2] : NULL;
     if (boss && !strcmp(boss, "-")) boss = NULL;      /* "-" = 没有 Boss 战 */
-    int phase = argc > 3 ? atoi(argv[3]) : 1;
-    int scale = argc > 4 ? atoi(argv[4]) : 100;
-    const char* out = argc > 5 ? argv[5] : "dlc_preview.bmp";
+    int scale = argc > 3 ? atoi(argv[3]) : 100;
+    const char* out = argc > 4 ? argv[4] : "dlc_preview.bmp";
     if (scale < 50) scale = 50;
     if (scale > 300) scale = 300;
 
@@ -107,12 +112,11 @@ int main(int argc, char** argv)
     v.logname = "2026-10-12_19-00-00";
 
     if (boss && boss[0]) {
-        /* 与运行时一致：先用基础名（去掉 (Clone)/PhaseN），形态号另外给。
-         * 不传形态号时从名字里推。 */
+        /* 与运行时完全一致：走同一个解析函数，形态号完全由名字决定。
+         * 这样 YukiPhase2 / Jim C. Bringer(P2) 这些写法在预览里和程序里表现相同。*/
         char base[64];
-        int ph = res_boss_phase(boss);
-        res_boss_base(boss, base, sizeof(base));
-        if (argc > 3) ph = phase;
+        int ph = 1;
+        res_parse_boss_arg(boss, base, sizeof(base), &ph);
         snprintf(disp, sizeof(disp), "%s", res_boss_display(base));
         v.in_fight = true;
         v.phase = ph;

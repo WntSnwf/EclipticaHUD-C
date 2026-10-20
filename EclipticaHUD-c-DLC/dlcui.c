@@ -202,8 +202,35 @@ static int wrap(HDC dc, HFONT f, const char* text, int maxpx, char out[][160], i
             if (p[i] == ' ') last_space = take;
             i += step;
         }
-        if (take == 0) take = 1;                 /* 单个字符也放不下时硬放一个 */
-        else if (last_space > 0 && take < strlen(p)) take = last_space;
+        if (take == 0) {
+            take = 1;                            /* 单个字符也放不下时硬放一个 */
+        } else if (last_space > 0 && take < strlen(p)) {
+            /* 默认就在 take 处硬断 —— 中日文可以在任意字之间断。
+             * 只有断点正好落在**英文单词中间**时，才回退到最近的空格，
+             * 免得把单词切开。
+             *
+             * 早先的写法是无条件回退到最近空格：中英混排的句子里空格很少，
+             * 于是经常退到很远的地方，一行只放得下 "Signal Tower" 这种，
+             * 版面看起来支离破碎。*/
+            unsigned char next = (unsigned char)p[take];
+            unsigned char prev = (unsigned char)p[take - 1];
+            bool next_is_alpha = (next >= 'A' && next <= 'Z') || (next >= 'a' && next <= 'z') ||
+                                 (next >= '0' && next <= '9');
+            bool prev_is_alpha = (prev >= 'A' && prev <= 'Z') || (prev >= 'a' && prev <= 'z') ||
+                                 (prev >= '0' && prev <= '9');
+            if (next_is_alpha && prev_is_alpha) take = last_space;
+        }
+
+        /* 别把标点单独甩到下一行开头（"charged" 换行后 ", an orbital…"，
+         * 或者句号自己占一行）。标点很窄，接在本行末尾不会溢出面板。*/
+        if (take > 0 && take < strlen(p)) {
+            unsigned char nx = (unsigned char)p[take];
+            if ((nx >= '!' && nx <= '/') || (nx >= ':' && nx <= '@') ||
+                (nx >= '[' && nx <= '`') || (nx >= '{' && nx <= '~')) {
+                take += 1;
+            }
+        }
+
         snprintf(line, sizeof(line), "%.*s", (int)take, p);
         /* 去掉行尾空格 */
         size_t ln = strlen(line);
@@ -212,6 +239,15 @@ static int wrap(HDC dc, HFONT f, const char* text, int maxpx, char out[][160], i
         lines++;
         p += take;
         while (*p == ' ') p++;
+    }
+
+    /* 被 max_lines 截断时，最后一行补省略号，别让用户以为内容就到这儿 */
+    if (*p && lines > 0) {
+        size_t ln = strlen(out[lines - 1]);
+        if (ln + 3 < 160) {
+            memcpy(out[lines - 1] + ln, "…", 3);
+            out[lines - 1][ln + 3] = 0;
+        }
     }
     return lines;
 }
@@ -262,13 +298,21 @@ static void draw_row(HDC dc, int y, int elem, const ElemVal* v, double others, b
     memset(&others_v, 0, sizeof(others_v));
     others_v.kind = VAL_NUM;
     others_v.mult = others;
+    others_v.has_mult = true;
     if (use->kind == VAL_NONE && has_others) use = &others_v;
 
-    switch (use->kind) {
-    case VAL_NUM:
-        verdict = res_verdict(use->mult);
-        /* 1.00 -> 1x，0.50 -> 0.5x，1.25 原样。
-         * （早先的写法把小数点换成 'x' 再截断，0.50x 会变成 0x —— 已修正）*/
+    /* 判定：数据文件里写明了 (weak)/(resist) 就以它为准，
+     * 只给倍率时由数值自己决定（>1 弱 / <1 抗）。*/
+    if (use->kind == VAL_WEAK)        verdict = 1;
+    else if (use->kind == VAL_RESIST) verdict = -1;
+    else if (use->kind == VAL_NUM)    verdict = res_verdict(use->mult);
+
+    if (use->kind == VAL_NONE) {
+        snprintf(val, sizeof(val), "—");
+        col = C_FAINT;
+    } else if (use->has_mult) {
+        /* 有倍率就显示倍率。带 ±x 未知增量的要标明方向：
+         * "0.7-x (resist)" 是**低于** 0.7，写成 "0.7x" 会被读成"正好 0.7"。*/
         snprintf(val, sizeof(val), "%.2f", use->mult);
         {
             size_t n = strlen(val);
@@ -276,21 +320,19 @@ static void draw_row(HDC dc, int y, int elem, const ElemVal* v, double others, b
             if (n > 0 && val[n - 1] == '.') val[--n] = 0;
             if (n + 2 <= sizeof(val)) { val[n] = 'x'; val[n + 1] = 0; }
         }
+        /* 前面加 < / > 前缀（整体左移一格，末尾 x 已经在）*/
+        if (use->bound != 0) {
+            char tmp[48];
+            snprintf(tmp, sizeof(tmp), "%s%s", use->bound < 0 ? "<" : ">", val);
+            snprintf(val, sizeof(val), "%s", tmp);
+        }
         col = verdict > 0 ? C_WEAK : (verdict < 0 ? C_RESIST : C_NEUTRAL);
         mark = verdict > 0 ? TXT_MARK_WEAK : (verdict < 0 ? TXT_MARK_RESIST : "");
-        break;
-    case VAL_WEAK:
-        snprintf(val, sizeof(val), "%s", TXT_VAL_WEAK);
-        col = C_WEAK; mark = "▲"; verdict = 1;
-        break;
-    case VAL_RESIST:
-        snprintf(val, sizeof(val), "%s", TXT_VAL_RESIST);
-        col = C_RESIST; mark = "▼"; verdict = -1;
-        break;
-    default:
-        snprintf(val, sizeof(val), "—");
-        col = C_FAINT;
-        break;
+    } else {
+        /* 只给了判定、没给倍率："1+x (weak)" 这种 */
+        snprintf(val, sizeof(val), "%s", verdict > 0 ? TXT_VAL_WEAK : TXT_VAL_RESIST);
+        col = verdict > 0 ? C_WEAK : C_RESIST;
+        mark = verdict > 0 ? "▲" : "▼";
     }
 
     tx(dc, PAD + 2, y, g_f_small, C_DIM, res_elem_name(elem));
@@ -311,8 +353,8 @@ static void draw_note(HDC dc, const DlcLayout* L, const char* const* lines, int 
     int maxpx = DLC_W - PAD * 2 - 14;
     for (int i = 0; i < n_lines; i++) {
         if (y + 12 > L->body.bottom) break;         /* 放不下了就停 */
-        char seg[6][160];
-        int n = wrap(dc, g_f_small, lines[i], maxpx, seg, 6);
+        char seg[16][160];
+        int n = wrap(dc, g_f_small, lines[i], maxpx, seg, 16);
         for (int k = 0; k < n; k++) {
             if (y + 12 > L->body.bottom) break;
             tx(dc, PAD + 2 + (k > 0 ? 9 : 0), y, g_f_small, C_DIM, seg[k]);

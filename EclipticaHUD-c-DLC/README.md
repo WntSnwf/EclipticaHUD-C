@@ -125,7 +125,7 @@ hr-dlc.exe --help
 |---|---|
 | （无） | 自动定位日志，**先从头扫一遍**确定当前 Boss，再持续跟随 |
 | `--log <文件>` | 只用这个文件；文件打不开时每 2 秒重试，不会退回到自动定位 |
-| `--boss <内部名>` | 忽略日志，固定显示这一只（内部名，例如 `FlyLord`、`YukiPhase2`）|
+| `--boss <名字>` | 忽略日志，固定显示这一只。三种写法都行：`FlyLord`、`YukiPhase2`（日志里的对象名）、`Jim C. Bringer(P2)`（数据表里的键）|
 | `--table <文件>` | 指定抗性表。默认会自动查找（见 [数据文件格式](#数据文件格式)）|
 | `--demo` | 依次轮播几只代表型 Boss，用来确认面板本身正常 |
 | `--help`、`-h` | 显示帮助 |
@@ -195,10 +195,29 @@ Poison: 0.5x
 | 写法 | 含义 |
 |---|---|
 | `Fire: 1.25x` | 具体倍率；`>1` 显示为「弱」，`<1` 显示为「抗」 |
-| `Fire: 1+x (weak)` | 只说明弱、没给具体倍率，面板显示 `弱 ▲` |
+| `Fire: 0.7-x (resist)` | **倍率 + 方向 + 判定**：基数是 `0.7`，`-x` 表示**比 0.7 还低**，判为「抗」→ 面板显示 `<0.7x ▼抗` |
+| `Fire: 1.25+x (weak)` | 同上但方向相反：**比 1.25 还高** → `>1.25x ▲弱` |
+| `Fire: 1+x (weak)` | 只说明弱、没给具体倍率，面板显示 `弱 ▲`（`1` 是中性基准，写出来反而误导，所以不显示）|
 | `Fire: 1-x (resist)` | 只说明抗、没给具体倍率，面板显示 `抗 ▼` |
-| `Others: 0.75x` | 其余未单列的元素统一按这个倍率（例如 `Jim C. Bringer(P3)`）|
-| 直接写一句话 | 整段没有数值表时，按说明文字显示（例如 `NaN`、`Jim C. Bringer(P1)`）|
+| `Others: 0.75x` | 其余未单列的元素统一按这个倍率（例如 `Jim C. Bringer(P3)`）；也可写 `其余:` |
+| 直接写一句话 | 整段没有数值表时，按说明文字显示（例如 `NaN`、`Jim C. Bringer(P2)`）|
+
+关于 `±x` 的方向：
+
+- `N-x` = **低于 N**，`N+x` = **高于 N**（`x` 是没给出的增量）。
+  面板用 `<` / `>` 标出来，不会显示成"正好 N"。
+  例：`Despair(P1)` 是 `Electric: 0.7x`（正好 0.7），`Despair(P2)` 是
+  `Electric: 0.7-x (resist)`（**低于** 0.7，即二阶更抗）—— 两者在面板上是 `0.7x`
+  和 `<0.7x`，一眼能分开。
+- 基数正好是 `1` 时只显示方向（`弱` / `抗`）：`1+x` 写成 `>1x` 反而更绕。
+- 带判定词时**判定词优先**：`1.25-x (resist)` 会显示 `<1.25x ▼抗`。
+
+几条容错约定：
+
+- **冒号半角全角都认**：`Fire: 1x` 和 `Fire：1x`（中文输入法打的全角冒号）等价。
+- **元素名**：英文键、中文键、日文键都认（见下面的对照表）。
+- **说明行可以很长**：单行上限 1024 字节，超过缓冲区宽度时会在**字符边界**上截断并补 `…`，
+  不会把汉字切成半个（切坏了那一行会整行变成空白）。实测最长的一行是日文 388 字节，完整显示。
 
 **说明文字是按数据文件里的原始行逐行显示的**，不会合并成一整段再重新折行。
 `NaN` 那段在文件里是 5 句话，面板上就是 5 行：
@@ -333,7 +352,7 @@ VRChat output_log.txt
 ## 测试与验证
 
 ```bat
-mingw32-make test        :: 逻辑测试（152 项检查）
+mingw32-make test        :: 逻辑测试（212 项检查）
 mingw32-make preview     :: 离屏渲染一张面板预览图，无需显示器
 ```
 
@@ -347,9 +366,9 @@ Boss 显示名映射（18 条）、基础名与形态号提取、说明行的语
 `preview_dlc.exe` 可以在没有显示器的环境下渲染任意状态，便于核对排版：
 
 ```bat
-preview_dlc.exe "Weakness&Resistance.txt" FlyLord 1 100 out.bmp
-preview_dlc.exe "Weakness&Resistance.txt" -       1 100 waiting.bmp   :: 没有 Boss 战
-preview_dlc.exe "Weakness&Resistance.txt" YukiPhase2 2 100 yuki2.bmp
+preview_dlc.exe "Weakness&Resistance.txt" FlyLord 100 out.bmp
+preview_dlc.exe "Weakness&Resistance.txt" -       100 waiting.bmp    :: 没有 Boss 战
+preview_dlc.exe "Weakness&Resistance.txt" YukiPhase2 100 yuki2.bmp  :: 形态号由名字带
 ```
 
 实测覆盖的状态：
@@ -358,8 +377,8 @@ preview_dlc.exe "Weakness&Resistance.txt" YukiPhase2 2 100 yuki2.bmp
 
 |  | 左 | 中 | 右 |
 |---|---|---|---|
-| **上** | 普通数值段（贝西卜）| 多行说明（NaN）| 单行说明（Jim P1）|
-| **中** | 单行说明（Jim P2）| `Others:` 段（Jim P3）| 符号写法（Yuki P2）|
+| **上** | 普通数值段（贝西卜）| 多行说明（NaN）| 数值表（Jim P1）|
+| **中** | 长说明（Jim P2）| `Others:` 段（Jim P3）| 倍率+判定（Despair P2）|
 | **下** | 没有 Boss 战 | 表里没有的 Boss | （空）|
 
 | 状态 | 结果 |

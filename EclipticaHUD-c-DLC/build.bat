@@ -35,7 +35,7 @@ if errorlevel 1 goto :fail
 del /q *.obj >nul 2>nul
 echo.
 echo Done: hr-dlc%SUF%.exe / test_dlc%SUF%.exe
-echo Run .\test_dlc%SUF%.exe to execute the 152 logic checks.
+echo Run .\test_dlc%SUF%.exe to execute the 212 logic checks.
 exit /b 0
 
 :badlang

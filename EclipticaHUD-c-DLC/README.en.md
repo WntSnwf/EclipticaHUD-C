@@ -115,7 +115,7 @@ hr-dlc.exe --help
 |---|---|
 | (none) | Locates the log automatically, **scans it from the start** to establish the current boss, then keeps following |
 | `--log <file>` | Use only this file; retries every 2 seconds if it cannot be opened, and never falls back to auto-location |
-| `--boss <internal name>` | Ignore the log and pin this one (internal name, e.g. `FlyLord`, `YukiPhase2`) |
+| `--boss <name>` | Ignore the log and pin this one. Three spellings work: `FlyLord`, `YukiPhase2` (the object name from the log) and `Jim C. Bringer(P2)` (the key used in the data table) |
 | `--table <file>` | Use this resistance table. By default it is located automatically (see [Data file format](#data-file-format)) |
 | `--demo` | Cycles through a few representative bosses, to check that the panel itself works |
 | `--help`, `-h` | Show help |
@@ -189,10 +189,32 @@ Accepted forms:
 | Form | Meaning |
 |---|---|
 | `Fire: 1.25x` | An explicit multiplier; `>1` shows as "weak", `<1` shows as "resist" |
-| `Fire: 1+x (weak)` | Says weak without a multiplier; the panel shows `WEAK ▲` |
-| `Fire: 1-x (resist)` | Says resist without a multiplier; the panel shows `RES ▼` |
-| `Others: 0.75x` | Every element not listed separately uses this multiplier (e.g. `Jim C. Bringer(P3)`) |
-| A plain sentence | When a block has no table at all, the text is shown as a note (e.g. `NaN`, `Jim C. Bringer(P1)`) |
+| `Fire: 0.7-x (resist)` | **Multiplier + direction + verdict**: the base is `0.7`, `-x` means **lower than 0.7**, verdict "resist"; the panel shows `<0.7x ▼RES` |
+| `Fire: 1.25+x (weak)` | Same but the other way: **higher than 1.25** → `>1.25x ▲WEAK` |
+| `Fire: 1+x (weak)` | Says weak without a usable multiplier; the panel shows `WEAK ▲` (the `1` is the neutral baseline, so printing it would be misleading) |
+| `Fire: 1-x (resist)` | Says resist without a usable multiplier; the panel shows `RES ▼` |
+| `Others: 0.75x` | Every element not listed separately uses this multiplier (e.g. `Jim C. Bringer(P3)`); `其余` works too |
+| A plain sentence | When a block has no table at all, the text is shown as a note (e.g. `NaN`, `Jim C. Bringer(P2)`) |
+
+About the `±x` direction:
+
+- `N-x` means **below N**, `N+x` means **above N** (`x` is an increment that is not given).
+  The panel marks it with `<` / `>`, so it never reads as "exactly N".
+  Example: `Despair(P1)` has `Electric: 0.7x` (exactly 0.7) while `Despair(P2)` has
+  `Electric: 0.7-x (resist)` (**below** 0.7, i.e. phase 2 resists it more). The panel shows
+  `0.7x` versus `<0.7x`, so the two are distinguishable at a glance.
+- When the base is exactly `1`, only the direction is shown (`WEAK` / `RES`); writing `>1x` would be
+  more confusing than helpful.
+- An explicit verdict word wins: `1.25-x (resist)` shows `<1.25x ▼RES`.
+
+A few tolerance rules:
+
+- **Both colons are accepted**: `Fire: 1x` and `Fire：1x` (the full-width colon a Chinese IME produces) are equivalent.
+- **Element names**: English, Chinese and Japanese keys are all accepted (see the table below).
+- **Note lines can be long**: a single line may be up to 1024 bytes. Anything wider than the buffer is
+  truncated **on a character boundary** with a trailing `…`, so no multi-byte character is ever split
+  (a half character would make the whole line render blank). The longest real line is 388 bytes of
+  Japanese and is shown in full.
 
 **Note text is displayed line by line, exactly as written in the data file.** It is never merged
 into one paragraph and re-wrapped. The `NaN` block is five sentences in the file, and five entries
@@ -339,7 +361,7 @@ VRChat output_log.txt
 ## Tests and verification
 
 ```bat
-mingw32-make test        :: logic tests (152 checks)
+mingw32-make test        :: logic tests (212 checks)
 mingw32-make preview     :: render one panel preview offscreen, no monitor needed
 ```
 
@@ -354,9 +376,9 @@ values for every kind of lookup miss.
 typography:
 
 ```bat
-preview_dlc.exe "Weakness&Resistance.txt" FlyLord 1 100 out.bmp
-preview_dlc.exe "Weakness&Resistance.txt" -       1 100 waiting.bmp   :: no boss fight
-preview_dlc.exe "Weakness&Resistance.txt" YukiPhase2 2 100 yuki2.bmp
+preview_dlc.exe "Weakness&Resistance.txt" FlyLord 100 out.bmp
+preview_dlc.exe "Weakness&Resistance.txt" -       100 waiting.bmp    :: no boss fight
+preview_dlc.exe "Weakness&Resistance.txt" YukiPhase2 100 yuki2.bmp  :: the phase comes from the name
 ```
 
 The states actually covered:
@@ -365,8 +387,8 @@ The states actually covered:
 
 |  | Left | Middle | Right |
 |---|---|---|---|
-| **Top** | plain number block (Beelzebub) | multi-line note (NaN) | single-line note (Jim P1) |
-| **Middle** | single-line note (Jim P2) | `Others:` block (Jim P3) | symbolic form (Yuki P2) |
+| **Top** | plain number block (Beelzebub) | multi-line note (NaN) | number table (Jim P1) |
+| **Middle** | long note (Jim P2) | `Others:` block (Jim P3) | multiplier + verdict (Despair P2) |
 | **Bottom** | no boss fight | boss missing from the table | (empty) |
 
 | State | Result |

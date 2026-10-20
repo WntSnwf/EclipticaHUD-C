@@ -36,18 +36,28 @@ typedef enum {
 typedef enum {
     VAL_NONE = 0,   /* 该段没有这一项 */
     VAL_NUM,        /* 具体倍率 */
-    VAL_WEAK,       /* "1+x (weak)"：弱，倍率未给出 */
-    VAL_RESIST      /* "1-x (resist)"：抗，倍率未给出 */
+    VAL_WEAK,       /* 弱 */
+    VAL_RESIST      /* 抗 */
 } ValKind;
 
 typedef struct {
-    ValKind kind;
-    double  mult;
+    ValKind kind;       /* 用于配色和 ▲/▼ 标记 */
+    double  mult;       /* 数值 */
+    /* mult 是否有效。数据文件里既有纯数值写法（1.25x），
+     * 也有"只给判定"的写法（1+x (weak) / 1-x (resist)），
+     * 还有**两者都给**的写法（0.7-x (resist)）—— 最后这种以前会把 0.7 丢掉。*/
+    bool    has_mult;
+    /* "N±x" 里的未知增量方向：-1 = 比 N 更低，+1 = 比 N 更高，0 = 就是 N。
+     * 关键案例：Despair(P2) 的 `Electric: 0.7-x (resist)` 意思是
+     * **低于 0.7**（比一阶段的 0.7 更抗），显示成 "0.7x" 会被读成"正好 0.7"。*/
+    int     bound;
 } ElemVal;
 
-#define RES_MAX_BOSSES 160
+/* 说明文字比较长，而且**按句分行**写（实测 Jim P2 是 4 行、NaN 是 5 行），
+ * 所以行数留够。尺寸预算：128 × (8×640 + 其它) ≈ 660 KB，是静态区，不进栈。*/
+#define RES_MAX_BOSSES 128
 #define RES_NOTE_LINES 8      /* 一个段落的说明最多保留几行 */
-#define RES_NOTE_LEN   160
+#define RES_NOTE_LEN   640
 
 typedef struct {
     char    name[64];            /* 数据文件里的段落名（查询键），如 "Beelzebub" */
@@ -94,6 +104,13 @@ void res_boss_base(const char* name, char* out, int cap);
 
 /* 形态号："Yuki" -> 1，"YukiPhase3" -> 3 */
 int res_boss_phase(const char* name);
+
+/* 把用户输入的 Boss 名解析成"基础名 + 形态号"。三种写法都支持：
+ *     FlyLord              -> ("FlyLord", 1)
+ *     YukiPhase2           -> ("Yuki", 2)           日志里的对象名
+ *     Jim C. Bringer(P2)   -> ("Jim C. Bringer", 2) 数据表里的键
+ * --boss 和演示模式都必须走这个，否则多形态 Boss 查不到。*/
+void res_parse_boss_arg(const char* arg, char* base, int cap, int* phase);
 
 /* 查询：内部名 + 形态号。先试 "<显示名>(P<形态>)"，再试 "<显示名>"。
  * 找不到返回 NULL。 */

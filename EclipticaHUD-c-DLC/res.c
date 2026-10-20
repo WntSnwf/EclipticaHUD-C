@@ -136,6 +136,46 @@ int res_boss_phase(const char* name)
     return atoi(d);
 }
 
+/* 把用户输入的 Boss 名解析成"基础名 + 形态号"。三种写法都支持：
+ *     FlyLord               -> ("FlyLord", 1)
+ *     YukiPhase2            -> ("Yuki", 2)          <- 日志里的对象名
+ *     Jim C. Bringer(P2)    -> ("Jim C. Bringer", 2) <- 数据表里的键
+ * 之前 --boss 直接拿原始字符串去查表，多形态 Boss 一律查不到
+ * （"YukiPhase2" 会去找 "YukiPhase2(P2)" 这个不存在的键）。*/
+void res_parse_boss_arg(const char* arg, char* base, int cap, int* phase)
+{
+    if (cap > 0) base[0] = 0;
+    if (phase) *phase = 1;
+    if (!arg || !*arg) return;
+
+    char tmp[96];
+    snprintf(tmp, sizeof(tmp), "%s", arg);
+    rtrim(tmp);
+
+    /* 1. 结尾的 "(P2)" —— 数据表里的键就是这种写法 */
+    char* paren = strrchr(tmp, '(');
+    if (paren && (paren[1] == 'P' || paren[1] == 'p')) {
+        const char* d = paren + 2;
+        bool digits = (*d != 0);
+        for (const char* q = d; *q && *q != ')'; q++)
+            if (!isdigit((unsigned char)*q)) { digits = false; break; }
+        if (digits && strchr(d, ')')) {
+            if (phase) *phase = atoi(d);
+            *paren = 0;
+            rtrim(tmp);
+        }
+    }
+
+    /* 2. 结尾的 "PhaseN" */
+    if (!phase || *phase <= 1) {
+        int pn = res_boss_phase(tmp);
+        if (pn > 1 && phase) *phase = pn;
+    }
+
+    /* 3. 剩下的就是基础名（顺便去掉 (Clone) / PhaseN）*/
+    res_boss_base(tmp, base, cap);
+}
+
 int res_verdict(double mult)
 {
     if (mult > 1.0001) return 1;
@@ -156,27 +196,67 @@ static int elem_index(const char* key)
     return -1;
 }
 
-/* 解析 "1.25x" / "1x" / "0.75x" / "1+x (weak)" / "1-x (resist)"
+/* 解析数值部分："1.25x" / "1x" / "0.75x" / "1+x (weak)" / "1-x (resist)"
+ * 以及**数值 + 判定混合**的写法："0.7-x (resist)"（倍率 0.7 且判为抗）。
  * 返回 true 表示认出来了。 */
 static bool parse_value(const char* val, ElemVal* out)
 {
-    char buf[96];
+    char buf[128];
     snprintf(buf, sizeof(buf), "%s", val);
+    memset(out, 0, sizeof(*out));
 
-    /* 符号写法：1+x (weak) / 1-x (resist) */
-    if (strstr(buf, "(weak)"))   { out->kind = VAL_WEAK;   return true; }
-    if (strstr(buf, "(resist)")) { out->kind = VAL_RESIST; return true; }
+    /* 先看有没有 (weak) / (resist) 判定词 —— 有就记下判定，
+     * 但不急着返回：前面可能还写着倍率（0.7-x (resist)）*/
+    ValKind hint = VAL_NONE;
+    if (strstr(buf, "(weak)"))        hint = VAL_WEAK;
+    else if (strstr(buf, "(resist)")) hint = VAL_RESIST;
 
-    /* 数值写法：<数字>x */
+    /* 再尝试读开头的数字。找不到数字时，只有带判定词才算认出来。*/
     char* p = buf;
     char* end = NULL;
     double d = strtod(p, &end);
-    if (end == p) return false;                 /* 开头就不是数字 */
-    while (*end == ' ') end++;
-    if (*end != 'x' && *end != 'X') return false;
-    out->kind = VAL_NUM;
-    out->mult = d;
-    return true;
+    bool got_num = false;
+    int  bound = 0;              /* "N±x" 的方向：-1 更低 / +1 更高 */
+
+    if (end != p) {
+        /* 数字后面允许 +x / -x 这种"还要再加减"的写法，然后才是 x */
+        const char* q = end;
+        while (*q == ' ') q++;
+        if (*q == '+' || *q == '-') {
+            char sign = *q;
+            q++;
+            while (*q == ' ') q++;
+            if (*q == 'x' || *q == 'X') {
+                got_num = true;
+                bound = (sign == '+') ? 1 : -1;
+            }
+        } else if (*q == 'x' || *q == 'X') {
+            got_num = true;
+        } else if (hint != VAL_NONE) {
+            /* 形如 "0.7 (resist)"：数字后面没有 x，但有判定词，也算 */
+            got_num = true;
+        }
+    }
+
+    if (got_num) {
+        out->mult = d;
+        out->bound = bound;
+        /* "+x/-x" 的增量是未知的，所以严格说倍率也不确定。但两种写法要区别对待：
+         *   1+x (weak)   —— 1 只是中性基准，写出来反而让人以为"没变化"，只保留方向
+         *   0.7-x (resist) —— 0.7 本身有信息量，保留数字（并标明是"低于 0.7"）
+         * 判据：基数正好是 1 且带增量 -> 不显示数字。*/
+        out->has_mult = !(bound != 0 && d == 1.0);
+        /* 有判定词就以判定词为准（0.7-x (resist) -> 抗）；
+         * 没有判定词就是纯倍率，由数值自己决定强弱 */
+        out->kind = (hint != VAL_NONE) ? hint : VAL_NUM;
+        return true;
+    }
+
+    if (hint != VAL_NONE) {          /* "1+x (weak)" 这种没写数字的 */
+        out->kind = hint;
+        return true;
+    }
+    return false;
 }
 
 /* 说明行的语言前缀："zh: …" / "en: …" / "ja: …"（前缀必须小写）。
@@ -207,14 +287,37 @@ static bool table_started(const BossRes* b)
     return false;
 }
 
+/* 拷字符串，超出容量时**在 UTF-8 字符边界上**截断并补省略号。
+ * 直接用 snprintf 截断会把一个汉字切成半个，那半截不是合法 UTF-8，
+ * 交给 MultiByteToWideChar 会整行转换失败 —— 面板上就变成空白。*/
+static void copy_trimmed(char* dst, size_t cap, const char* src)
+{
+    size_t n = strlen(src);
+    if (n + 1 <= cap) { memcpy(dst, src, n + 1); return; }
+
+    size_t cut = cap - 1 - 3;               /* 留 3 字节给 "…" */
+    while (cut > 0 && ((unsigned char)src[cut] & 0xC0) == 0x80) cut--;
+    memcpy(dst, src, cut);
+    memcpy(dst + cut, "…", 3);
+    dst[cut + 3] = 0;
+}
+
 /* 追加一行说明。注意是**逐行保留**，不是拼接成一整段：
  * 数据文件里 NaN 的五行是五句独立的话，拼起来再按宽度折行会把
  * "Fire mode: …" 和 "Frost mode: …" 挤到同一行。*/
 static void add_note(BossRes* b, const char* text)
 {
     if (!b) return;
-    if (b->n_note < RES_NOTE_LINES)
-        snprintf(b->note[b->n_note++], RES_NOTE_LEN, "%s", text);
+    if (b->n_note < RES_NOTE_LINES) {
+        copy_trimmed(b->note[b->n_note++], RES_NOTE_LEN, text);
+    } else if (b->n_note > 0) {
+        /* 超出上限：在最后一行补省略号，别让读者以为说明就到此为止 */
+        size_t ln = strlen(b->note[b->n_note - 1]);
+        if (ln + 3 < RES_NOTE_LEN) {
+            memcpy(b->note[b->n_note - 1] + ln, "…", 3);
+            b->note[b->n_note - 1][ln + 3] = 0;
+        }
+    }
     b->is_note = true;
 }
 
@@ -233,7 +336,9 @@ static void strip_comment(char* s)
 /* 真正的解析循环：两个入口共用 */
 static bool load_stream(ResTable* t, FILE* f)
 {
-    char line[512];
+    /* 单行上限。实测最长的一行说明是日文的 388 字节，留到 1024 足够；
+     * 再长的行会被 fgets 拆成多行（变成多条说明），不会崩。*/
+    char line[1024];
     BossRes* cur = NULL;
     bool fresh_block = true;        /* 文件开头 / 刚遇到 --- */
     int  lineno = 0;
@@ -262,11 +367,19 @@ static bool load_stream(ResTable* t, FILE* f)
             }
         }
 
+        /* 冒号：半角 ':' 和全角 '：'（U+FF1A，UTF-8 为 EF BC 9A）都认 ——
+         * 用中文输入法维护数据表时很容易打出全角冒号。*/
         char* colon = strchr(s, ':');
+        {
+            char* cw = strstr(s, "\xEF\xBC\x9A");
+            if (cw && (!colon || cw < colon)) colon = cw;
+        }
         if (colon && cur) {
+            size_t clen = (colon[0] == ':' ) ? 1 : 3;
+            const char* sep = (clen == 1) ? ": " : "\xEF\xBC\x9A";
             *colon = 0;
             char* key = rtrim(ltrim(s));
-            char* val = ltrim(colon + 1);
+            char* val = ltrim(colon + clen);
             int e = elem_index(key);
             if (e >= 0) {
                 ElemVal tmp;
@@ -275,10 +388,10 @@ static bool load_stream(ResTable* t, FILE* f)
                 else { cur->v[e].kind = VAL_NONE; t->bad_lines++; }
                 continue;
             }
-            if (ci_equal(key, "Others")) {
+            if (ci_equal(key, "Others") || ci_equal(key, "其余") || ci_equal(key, "其他")) {
                 ElemVal tmp;
                 memset(&tmp, 0, sizeof(tmp));
-                if (parse_value(val, &tmp) && tmp.kind == VAL_NUM) {
+                if (parse_value(val, &tmp) && tmp.has_mult) {
                     cur->has_others = true;
                     cur->others = tmp.mult;
                 } else {
@@ -286,9 +399,10 @@ static bool load_stream(ResTable* t, FILE* f)
                 }
                 continue;
             }
-            /* 带冒号但不是元素行 -> 当作说明（例如 "Fire mode: weakness is fire"）*/
-            char joined[512];
-            snprintf(joined, sizeof(joined), "%s: %s", key, val);
+            /* 带冒号但不是元素行 -> 当作说明（例如 "Fire mode: weakness is fire"）。
+             * 用原来的分隔符拼回去，别把全角冒号悄悄改成半角。*/
+            char joined[1024];
+            snprintf(joined, sizeof(joined), "%s%s%s", key, sep, val);
             add_note(cur, joined);
             continue;
         }
@@ -299,7 +413,7 @@ static bool load_stream(ResTable* t, FILE* f)
             if (t->n >= RES_MAX_BOSSES) { t->bad_lines++; continue; }
             cur = &t->b[t->n++];
             memset(cur, 0, sizeof(*cur));
-            snprintf(cur->name, sizeof(cur->name), "%s", s);
+            copy_trimmed(cur->name, sizeof(cur->name), s);
             fresh_block = false;
         } else {
             add_note(cur, s);

@@ -56,12 +56,33 @@ static void test_parse(void)
         CHECK(j3->v[ELEM_FIRE].kind == VAL_NONE, "Fire 未单列（走 Others）");
     }
 
-    /* 只有说明文字的段：这里只查结构（几行、有没有被拼接），
+    /* 只有说明文字的段：这里只查结构（几行、有没有被拼接、有没有被截断），
      * 具体文字属于数据文件内容，会随维护而变，放到 test_notes() 里
      * 用临时文件按已知内容验证。 */
+
+    /* Jim(P1) 在某一版数据表里是纯说明，后来改成了全 1x 的数值表 ——
+     * 两种都算合法，这里只要求"能查到且有内容"，不钉死形式。*/
     const BossRes* j1 = res_find(&T, "JimBringer", 1);
-    CHECK(j1 != NULL && j1->is_note, "JimBringer 形态 1 -> 说明型条目");
-    if (j1) CHECK(j1->n_note == 1, "Jim P1 的说明是 1 行");
+    CHECK(j1 != NULL, "JimBringer 形态 1 -> 能查到");
+    if (j1) {
+        bool has_any = j1->has_others;
+        for (int i = 0; i < ELEM_COUNT; i++)
+            if (j1->v[i].kind != VAL_NONE) has_any = true;
+        CHECK(has_any || j1->n_note > 0, "Jim P1 有数值表或说明，不是空条目");
+    }
+
+    /* Jim(P2) 的说明很长（实测日文 388 字节），不能被截断成半截 UTF-8 */
+    const BossRes* j2n = res_find(&T, "JimBringer", 2);
+    if (j2n && j2n->n_note > 0) {
+        size_t len = strlen(j2n->note[0]);
+        char msg[128];
+        snprintf(msg, sizeof(msg), "Jim P2 的说明完整保留（%u 字节，未截断）", (unsigned)len);
+        /* 末字节可能是某个多字节字符的后续字节，那很正常；
+         * 真正要保证的是整串合法 —— 能转成 UTF-16 就说明没被切坏。*/
+        wchar_t wbuf[RES_NOTE_LEN];
+        int wn = MultiByteToWideChar(CP_UTF8, 0, j2n->note[0], -1, wbuf, RES_NOTE_LEN);
+        CHECK(len + 1 < RES_NOTE_LEN && wn > 0, msg);
+    }
 
     const BossRes* nan = res_find(&T, "Nan", 1);
     CHECK(nan != NULL && nan->is_note, "Nan -> NaN 说明型条目");
@@ -166,16 +187,22 @@ static void test_names(void)
     CHECK(res_find(&T, "", 1) == NULL, "空名字返回 NULL");
     CHECK(res_find(&T, NULL, 1) == NULL, "NULL 返回 NULL");
 
-    /* JimBringer 形态 2：数据表里补的是"All damage blocked."这种说明型条目 */
+    /* JimBringer 形态 2：说明型条目。行数随数据表怎么断句而变（现在是每句一行），
+     * 所以不钉死行数，只要求"有说明且每行都是完整合法的 UTF-8"。*/
     const BossRes* j2 = res_find(&T, "JimBringer", 2);
     CHECK(j2 != NULL, "JimBringer 形态 2 -> 能查到（表里已补）");
     if (j2) {
         CHECK(!strcmp(j2->name, "Jim C. Bringer(P2)"), "段名 = Jim C. Bringer(P2)");
         CHECK(j2->is_note, "形态 2 是说明型条目");
-        CHECK(j2->n_note == 1, "形态 2 的说明是 1 行");
-        if (j2->n_note == 1)
-            CHECK(j2->note[0][0] != 0 && strchr(j2->note[0], '#') == NULL,
-                  "形态 2 的说明非空且没有注释残留");
+        CHECK(j2->n_note >= 1, "形态 2 有说明文字");
+        bool notes_ok = true;
+        for (int i = 0; i < j2->n_note; i++) {
+            wchar_t w[RES_NOTE_LEN];
+            if (!j2->note[i][0] || strchr(j2->note[i], '#') ||
+                MultiByteToWideChar(CP_UTF8, 0, j2->note[i], -1, w, RES_NOTE_LEN) <= 0)
+                notes_ok = false;
+        }
+        CHECK(notes_ok, "每行说明都非空、无注释残留、且是合法 UTF-8");
         CHECK(!j2->has_others, "形态 2 没有 Others 行");
     }
     /* 三个形态必须各自独立、不串台 */
@@ -260,19 +287,27 @@ static int probe_log(const char* path)
                 char val[32];
                 snprintf(val, sizeof(val), "—");
 
-                if (v->kind == VAL_NUM) {
-                    int k = res_verdict(v->mult);
-                    verdict = k > 0 ? TXT_VAL_WEAK : (k < 0 ? TXT_VAL_RESIST : "-");
-                    snprintf(val, sizeof(val), "%.2fx", v->mult);
+                /* 判定：写明 (weak)/(resist) 以它为准，否则看倍率 */
+                int k = 0;
+                if (v->kind == VAL_WEAK)        k = 1;
+                else if (v->kind == VAL_RESIST) k = -1;
+                else if (v->kind == VAL_NUM)    k = res_verdict(v->mult);
+                verdict = k > 0 ? TXT_VAL_WEAK : (k < 0 ? TXT_VAL_RESIST : "-");
+
+                if (v->kind != VAL_NONE && v->has_mult) {
+                    /* 数值 + 判定；带 ±x 的方向要用 </> 标出来
+                     * （0.7-x 是"低于 0.7"，不是"正好 0.7"）*/
+                    snprintf(val, sizeof(val), "%s%.2fx",
+                             v->bound < 0 ? "<" : (v->bound > 0 ? ">" : ""), v->mult);
                     printf("  %-18s %-7s %s\n", lab, val, verdict);
                 } else if (v->kind == VAL_WEAK || v->kind == VAL_RESIST) {
                     printf("  %-18s %s%s\n", lab,
                            v->kind == VAL_WEAK ? TXT_VAL_WEAK : TXT_VAL_RESIST, TXT_P_NOMULT);
                 } else if (r->has_others) {
-                    int k = res_verdict(r->others);
-                    verdict = k > 0 ? TXT_VAL_WEAK : (k < 0 ? TXT_VAL_RESIST : "-");
+                    int ko = res_verdict(r->others);
                     snprintf(val, sizeof(val), "%.2fx", r->others);
-                    printf("  %-18s %-7s %s   (Others)\n", lab, val, verdict);
+                    printf("  %-18s %-7s %s   (Others)\n", lab, val,
+                           ko > 0 ? TXT_VAL_WEAK : (ko < 0 ? TXT_VAL_RESIST : "-"));
                 } else {
                     printf("  %-18s —\n", lab);
                 }
@@ -640,6 +675,192 @@ static void test_phase_death(void)
     remove(path);
 }
 
+/* 数据表后来出现过的新写法，逐条钉住 —— 这些都是"格式变了就悄悄丢数据"的地方。 */
+static void test_new_formats(void)
+{
+    printf("\n=== 新写法 ===\n");
+
+    /* 1. "0.7-x (resist)" —— 倍率 + 判定混写，0.7 不能丢，
+     *    而且方向必须是"低于 0.7"（二阶比一阶更抗），不能显示成"正好 0.7" */
+    const BossRes* d2 = res_find(&T, "Despair", 2);
+    CHECK(d2 != NULL && !strcmp(d2->name, "Despair(P2)"), "Despair 形态 2 -> Despair(P2)");
+    if (d2) {
+        const ElemVal* e = &d2->v[ELEM_ELECTRIC];
+        CHECK(e->kind == VAL_RESIST, "0.7-x (resist) 判为「抗」");
+        CHECK(e->has_mult, "0.7-x (resist) 保留了倍率");
+        CHECK(fabs(e->mult - 0.7) < 1e-9, "倍率基数 = 0.7");
+        CHECK(e->bound == -1, "方向 = 低于 0.7（不是正好 0.7）");
+        /* 一阶段是正好 0.7，二阶段更低 —— 这才是这条数据的本意 */
+        const BossRes* d1c = res_find(&T, "Despair", 1);
+        CHECK(d1c && d1c->v[ELEM_ELECTRIC].bound == 0,
+              "Despair(P1) 的 0.7x 是精确值（bound = 0）");
+    }
+    const BossRes* d1 = res_find(&T, "Despair", 1);
+    CHECK(d1 != NULL && !strcmp(d1->name, "Despair(P1)"), "Despair 形态 1 -> Despair(P1)");
+    if (d1) {
+        CHECK(d1->v[ELEM_ELECTRIC].kind == VAL_NUM &&
+              fabs(d1->v[ELEM_ELECTRIC].mult - 0.7) < 1e-9,
+              "Despair(P1) 的 Electric = 0.7x 纯数值");
+    }
+
+    /* 2. 只给判定、没给倍率的老写法仍然正常工作 */
+    const BossRes* y2 = res_find(&T, "Yuki", 2);
+    if (y2) {
+        CHECK(y2->v[ELEM_FIRE].kind == VAL_WEAK && !y2->v[ELEM_FIRE].has_mult,
+              "Yuki(P2) Fire = 1+x (weak)，没有倍率");
+        CHECK(y2->v[ELEM_FROST].kind == VAL_RESIST && !y2->v[ELEM_FROST].has_mult,
+              "Yuki(P2) Frost = 1-x (resist)，没有倍率");
+    }
+
+    /* 2b. ±x 的方向用 bound 表达；基数不是 1 时保留数字并加 <>
+     *     （用临时表验证，不依赖随包数据）*/
+    {
+        const char* path = "_tmp_bound.txt";
+        FILE* f = fopen(path, "wb");
+        if (f) {
+            fputs("BoundTest\n"
+                  "Physical: 0.5-x (resist)\n"      /* <0.5x 抗 */
+                  "Fire: 1.25+x (weak)\n"           /* >1.25x 弱 */
+                  "Frost: 1+x (weak)\n"             /* 基数是 1 -> 只给判定 */
+                  "Electric: 0.75x\n"               /* 精确值 */
+                  "Luminous: 0.8-x\n"               /* 没有判定词，靠数值定强弱 */
+                  "---\n", f);
+            fclose(f);
+            ResTable C;
+            if (res_load(&C, path)) {
+                const BossRes* b = res_find(&C, "BoundTest", 1);
+                CHECK(b != NULL, "bound 测试表能加载");
+                if (b) {
+                    CHECK(b->v[ELEM_PHYSICAL].bound == -1 &&
+                          fabs(b->v[ELEM_PHYSICAL].mult - 0.5) < 1e-9 &&
+                          b->v[ELEM_PHYSICAL].has_mult, "0.5-x (resist) -> 低于 0.5，保留数字");
+                    CHECK(b->v[ELEM_FIRE].bound == 1 &&
+                          b->v[ELEM_FIRE].kind == VAL_WEAK, "1.25+x (weak) -> 高于 1.25");
+                    CHECK(!b->v[ELEM_FROST].has_mult, "1+x (weak) 基数 1 -> 不显示数字");
+                    CHECK(b->v[ELEM_ELECTRIC].bound == 0 &&
+                          fabs(b->v[ELEM_ELECTRIC].mult - 0.75) < 1e-9, "0.75x -> 精确值");
+                    CHECK(b->v[ELEM_LUMINOUS].bound == -1 &&
+                          b->v[ELEM_LUMINOUS].kind == VAL_NUM, "0.8-x 无判定词 -> 数值型但方向为低");
+                }
+            }
+            remove(path);
+        }
+    }
+
+    /* 3. 全角冒号（中文输入法很容易打出来）*/
+    {
+        const char* path = "_tmp_fw.txt";
+        FILE* f = fopen(path, "wb");
+        if (f) {
+            fputs("FullWidth\n"
+                  "Fire\xEF\xBC\x9A" "1.25x\n"      /* 全角冒号（分开写，免得 \x 吃掉后面的 1）*/
+                  "Frost: 0.75x\n"
+                  "---\n", f);
+            fclose(f);
+            ResTable C;
+            if (res_load(&C, path)) {
+                const BossRes* b = res_find(&C, "FullWidth", 1);
+                CHECK(b != NULL, "全角冒号的行被认出来了");
+                if (b) {
+                    CHECK(fabs(b->v[ELEM_FIRE].mult - 1.25) < 1e-9, "全角冒号 Fire = 1.25x");
+                    CHECK(fabs(b->v[ELEM_FROST].mult - 0.75) < 1e-9, "半角冒号 Frost = 0.75x");
+                    CHECK(C.bad_lines == 0, "全角冒号没有产生无法识别的行");
+                }
+            }
+            remove(path);
+        }
+    }
+
+    /* 4. 超长说明：截断必须落在 UTF-8 字符边界上，
+     *    否则那半截字符不合法，转 UTF-16 会整行失败、面板上是空白。 */
+    {
+        const char* path = "_tmp_long.txt";
+        FILE* f = fopen(path, "wb");
+        if (f) {
+            fputs("LongNote\n", f);
+            for (int i = 0; i < 300; i++) fputs("\xE9\x95\xBF", f);   /* 300 个"长" = 900 字节 */
+            fputs("\n---\n", f);
+            fclose(f);
+            ResTable C;
+            if (res_load(&C, path)) {
+                const BossRes* b = res_find(&C, "LongNote", 1);
+                CHECK(b != NULL && b->n_note == 1, "超长说明仍保留为 1 行");
+                if (b && b->n_note == 1) {
+                    size_t len = strlen(b->note[0]);
+                    CHECK(len < RES_NOTE_LEN, "超长说明被截到缓冲区以内");
+                    CHECK(len >= 3 && !strcmp(b->note[0] + len - 3, "…"),
+                          "截断后补了省略号（落在字符边界上）");
+                    wchar_t wbuf[RES_NOTE_LEN];
+                    int n = MultiByteToWideChar(CP_UTF8, 0, b->note[0], -1, wbuf, RES_NOTE_LEN);
+                    CHECK(n > 0, "截断后的说明仍是合法 UTF-8（能转 UTF-16，不会显示成空白）");
+                }
+            }
+            remove(path);
+        }
+    }
+}
+
+/* --boss 的参数解析。以前 --boss 直接拿原始字符串去查表，
+ * "YukiPhase2" 会被拼成 "YukiPhase2(P2)" 这种不存在的键，
+ * 于是所有多形态 Boss 都显示"数据表里没有这只 Boss"。*/
+static void test_boss_arg(void)
+{
+    printf("\n=== --boss 的几种写法 ===\n");
+
+    typedef struct { const char* arg; const char* base; int phase; bool found; } Case;
+    static const Case cases[] = {
+        { "FlyLord",             "FlyLord",          1, true  },
+        { "Corus",               "Corus",            1, true  },
+        { "Yuki",                "Yuki",             1, true  },
+        { "YukiPhase2",          "Yuki",             2, true  },
+        { "Yuki(P2)",            "Yuki",             2, true  },
+        { "JimBringer",          "JimBringer",       1, true  },
+        { "JimBringerPhase2",    "JimBringer",       2, true  },
+        { "JimBringerPhase3",    "JimBringer",       3, true  },
+        { "Jim C. Bringer(P2)",  "Jim C. Bringer",   2, true  },
+        { "Jim C. Bringer(P3)",  "Jim C. Bringer",   3, true  },
+        { "Despair",             "Despair",          1, true  },
+        { "DespairPhase2",       "Despair",          2, true  },
+        { "Despair(P2)",         "Despair",          2, true  },
+        { "ConeHeadPhase2",      "ConeHead",         2, true  },
+        { "DarkMouth(Clone)",    "DarkMouth",        1, true  },
+        { "NoSuchBoss",          "NoSuchBoss",       1, false },
+    };
+
+    for (size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); i++) {
+        char base[64];
+        int ph = 0;
+        res_parse_boss_arg(cases[i].arg, base, sizeof(base), &ph);
+        char msg[160];
+        snprintf(msg, sizeof(msg), "--boss %s -> 基础名 %s / 形态 %d",
+                 cases[i].arg, cases[i].base, cases[i].phase);
+        CHECK(!strcmp(base, cases[i].base) && ph == cases[i].phase, msg);
+
+        /* 关键：解析出来的东西真的能查到 */
+        const BossRes* r = res_find(&T, base, ph);
+        snprintf(msg, sizeof(msg), "--boss %s -> %s", cases[i].arg,
+                 cases[i].found ? "查得到条目" : "查不到（符合预期）");
+        CHECK((r != NULL) == cases[i].found, msg);
+    }
+
+    /* 形态号对得上具体条目 */
+    {
+        char base[64]; int ph = 1;
+        res_parse_boss_arg("JimBringerPhase3", base, sizeof(base), &ph);
+        const BossRes* r = res_find(&T, base, ph);
+        CHECK(r != NULL && !strcmp(r->name, "Jim C. Bringer(P3)"),
+              "--boss JimBringerPhase3 查到的正是 Jim C. Bringer(P3)");
+    }
+    /* 空参数不能崩 */
+    {
+        char base[64]; int ph = 0;
+        res_parse_boss_arg("", base, sizeof(base), &ph);
+        CHECK(base[0] == 0 && ph == 1, "空参数 -> 空基础名、形态 1");
+        res_parse_boss_arg(NULL, base, sizeof(base), &ph);
+        CHECK(base[0] == 0 && ph == 1, "NULL 参数不崩");
+    }
+}
+
 int main(int argc, char** argv)
 {
     if (argc > 2 && !strcmp(argv[1], "--log")) return probe_log(argv[2]);
@@ -660,6 +881,8 @@ int main(int argc, char** argv)
     test_absolute_path();
     test_table_lookup();
     test_phase_death();
+    test_new_formats();
+    test_boss_arg();
 
     printf("\n%s：%d 项检查，%d 项失败\n", fails ? "失败" : "全部通过", checks, fails);
     return fails ? 1 : 0;

@@ -173,10 +173,14 @@ static void refresh_view(void)
     const char* internal = NULL;
     int phase = 1;
     bool in_fight = false;
+    /* 解析 --boss / 演示序列时用；必须活到函数结束 */
+    char arg_base[64];
 
     if (g_forced_boss[0]) {
-        internal = g_forced_boss;
-        phase = res_boss_phase(g_forced_boss);
+        /* 走统一解析：YukiPhase2 / Jim C. Bringer(P2) 这些写法都能落到基础名+形态号，
+         * 直接拿原字符串去查表会拼出 "YukiPhase2(P2)" 这种不存在的键。*/
+        res_parse_boss_arg(g_forced_boss, arg_base, sizeof(arg_base), &phase);
+        internal = arg_base;
         in_fight = true;
     } else if (g_demo) {
         static const char* SEQ[] = { "FlyLord", "YukiPhase2", "NaN", "JimBringer",
@@ -185,8 +189,8 @@ static void refresh_view(void)
         static double next = 0;
         double t = (double)GetTickCount64() / 1000.0;
         if (t >= next) { next = t + 4.0; idx = (idx + 1) % (int)(sizeof(SEQ)/sizeof(SEQ[0])); }
-        internal = SEQ[idx];
-        phase = res_boss_phase(internal);
+        res_parse_boss_arg(SEQ[idx], arg_base, sizeof(arg_base), &phase);
+        internal = arg_base;
         in_fight = true;
     } else if (g_tail.in_fight && g_tail.boss[0]) {
         internal = g_tail.boss;
