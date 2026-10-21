@@ -240,9 +240,11 @@ static void build_view(DlcView* v, char* status, int scap, char* logname, int lc
     v->in_fight = g_cur_in_fight;
     v->res = g_cur_res;
     v->table_ok = g_res_ok;
-    /* 找不到表时告诉用户该放哪儿；--table 指定过就直接显示那个路径 */
+    /* 找不到表时告诉用户该放哪儿；--table 指定过就直接显示那个路径。
+     * 必须用 static：v->table_dir 会在 build_view 返回之后才被 dlcui_paint 使用，
+     * 指向局部变量就是悬垂指针。*/
     {
-        char hint[MAX_PATH * 2];
+        static char hint[MAX_PATH * 2];
         const wchar_t* src = g_res_forced ? g_res_path : g_res_hint;
         WideCharToMultiByte(CP_UTF8, 0, src, -1, hint, sizeof(hint), NULL, NULL);
         hint[sizeof(hint) - 1] = 0;
@@ -250,14 +252,13 @@ static void build_view(DlcView* v, char* status, int scap, char* logname, int lc
     }
     logname[0] = 0;
 
-    /* 托盘菜单刚做过操作（例如重读数据表）—— 优先显示这句，几秒后自动回到常态 */
+    /* 注意：这里是 if 链的第一个分支，**不能提前 return** ——
+     * v->status / v->logname 是在函数末尾统一赋值的，提前 return 会让它们
+     * 保持未初始化（paint() 里的 DlcView 并没有清零），dlcui_paint 解引用野指针
+     * 就会崩在 dlcui.c 的 v->logname[0] 那一行。*/
     if (g_tray_msg[0] && (double)GetTickCount64() / 1000.0 < g_tray_msg_until) {
         snprintf(status, (size_t)scap, "%s", g_tray_msg);
-        return;
-    }
-
-    /* 统一用 "%s"：文案里万一带 % 也不会被当成格式符 */
-    if (g_forced_boss[0]) {
+    } else if (g_forced_boss[0]) {
         snprintf(status, (size_t)scap, "%s", TXT_ST_FORCED);
     } else if (g_demo) {
         snprintf(status, (size_t)scap, "%s", TXT_ST_DEMO);
@@ -558,6 +559,9 @@ static void paint(HWND hwnd)
 
     char status[192], logname[96];
     DlcView v;
+    /* 清零：万一 build_view 有分支没设某个指针，dlcui_paint 里的 NULL 判断能兜住，
+     * 而不是去解引用栈上的垃圾值（这条崩溃就是这么来的）。*/
+    memset(&v, 0, sizeof(v));
     build_view(&v, status, sizeof(status), logname, sizeof(logname));
 
     logical_begin();

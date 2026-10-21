@@ -132,11 +132,20 @@ Luminous: 0.5x
 Shadow: 1.25x
 Poison: 0.75x
 ---
-Melgor Johnson
+Melgor Johnson(P1)
 Physical: 1x
 Fire: 1x
 Frost: 1.5x
 Electric: 0.5x
+Luminous: 1x
+Shadow: 1.25x
+Poison: 1x
+---
+Melgor Johnson(P2)
+Physical: 1x
+Fire: 1x
+Frost: 1.5x
+Electric: 0.5+x (resist)
 Luminous: 1x
 Shadow: 1.25x
 Poison: 1x
