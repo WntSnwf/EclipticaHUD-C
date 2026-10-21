@@ -1,0 +1,30 @@
+Ecliptica DLC tray diagnostic
+exe      = hr-dlc.exe
+sizeof(NOTIFYICONDATAW) = 976
+WM_TRAY_NOTIFY = 0x8002 (WM_APP+2)
+log file = D:\fake C\杂七杂八\EclipticaHUD\Ecliptica-hud-c\EclipticaHUD-c-DLC\tray.log
+NIM_ADD ret=1 lastErr=0 hwnd=0x000000000017109C hIcon=0x00000000252F0FBF cbSize=976 uID=1
+tray callback: wp=0x0000000000000001 lp=0x00000200 (msg=0x0200)
+tray callback: wp=0x0000000000000001 lp=0x00000200 (msg=0x0200)
+tray callback: wp=0x0000000000000001 lp=0x00000200 (msg=0x0200)
+tray callback: wp=0x0000000000000001 lp=0x00000200 (msg=0x0200)
+tray callback: wp=0x0000000000000001 lp=0x00000200 (msg=0x0200)
+tray callback: wp=0x0000000000000001 lp=0x00000200 (msg=0x0200)
+tray callback: wp=0x0000000000000001 lp=0x00000200 (msg=0x0200)
+tray callback: wp=0x0000000000000001 lp=0x00000200 (msg=0x0200)
+tray callback: wp=0x0000000000000001 lp=0x00000200 (msg=0x0200)
+tray callback: wp=0x0000000000000001 lp=0x00000200 (msg=0x0200)
+tray callback: wp=0x0000000000000001 lp=0x00000200 (msg=0x0200)
+tray callback: wp=0x0000000000000001 lp=0x00000200 (msg=0x0200)
+tray callback: wp=0x0000000000000001 lp=0x00000200 (msg=0x0200)
+tray callback: wp=0x0000000000000001 lp=0x00000200 (msg=0x0200)
+tray callback: wp=0x0000000000000001 lp=0x00000200 (msg=0x0200)
+tray callback: wp=0x0000000000000001 lp=0x00000200 (msg=0x0200)
+tray callback: wp=0x0000000000000001 lp=0x00000200 (msg=0x0200)
+tray callback: wp=0x0000000000000001 lp=0x00000200 (msg=0x0200)
+tray callback: wp=0x0000000000000001 lp=0x00000200 (msg=0x0200)
+tray callback: wp=0x0000000000000001 lp=0x00000200 (msg=0x0200)
+tray callback: wp=0x0000000000000001 lp=0x00000200 (msg=0x0200)
+tray callback: wp=0x0000000000000001 lp=0x00000200 (msg=0x0200)
+tray callback: wp=0x0000000000000001 lp=0x00000200 (msg=0x0200)
+tray callback: wp=0x0000000000000001 lp=0x00000200 (msg=0x0200)

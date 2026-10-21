@@ -102,6 +102,15 @@
 
 /* 状态栏 */
 #define TXT_PIERCE_BADGE "鼠标穿透中 · Ctrl+Alt+T 恢复"
+
+/* 托盘图标（右键菜单）。穿透开着、快捷键又被别的程序占用时，
+ * 这里是唯一还能点的退出入口。*/
+#define TXT_TRAY_TIP        "Ecliptica HUD · 右键打开菜单"
+#define TXT_TRAY_TIP_PIERCE "Ecliptica HUD · 鼠标穿透中（右键菜单可恢复）"
+#define TXT_TRAY_TOP        "窗口置顶"
+#define TXT_TRAY_PIERCE     "鼠标穿透"
+#define TXT_TRAY_QUIT       "退出"
+#define TXT_TRAY_NO_HOTKEY  "（快捷键被占用）"
 #define TXT_LOG_MISSING  "未找到 VRChat 日志"
 #define TXT_LOG_FILE_MISSING "打不开 --log 指定的文件"
 #define TXT_WAIT_JOIN    "等待进入 Ecliptica"

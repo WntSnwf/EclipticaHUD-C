@@ -23,7 +23,7 @@ set "SRC=src\main.c src\overlay.c src\hud.c src\vlog.c src\parse.c ^
 echo [1/2] Building ecliptica-hud-c%SUF%.exe (LANG=%LANG%) ...
 cl /nologo /O2 /W3 /std:c11 /DUNICODE /D_UNICODE /utf-8 %LANGDEF% ^
    %SRC% ^
-   /link /SUBSYSTEM:WINDOWS user32.lib gdi32.lib ^
+   /link /SUBSYSTEM:WINDOWS user32.lib gdi32.lib shell32.lib ^
    /OUT:ecliptica-hud-c%SUF%.exe
 if errorlevel 1 goto :fail
 

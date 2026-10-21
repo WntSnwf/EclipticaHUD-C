@@ -25,13 +25,23 @@
 #include "uitext.h"
 #include "compat.h"
 #include <windowsx.h>
+#include <shellapi.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdarg.h>
+#include <wchar.h>
 #include <string.h>
 
 #define TIMER_POLL  200
 #define HOTKEY_QUIT 1
 #define HOTKEY_ID_MOD (MOD_CONTROL | MOD_ALT | MOD_NOREPEAT)
+
+/* 托盘图标：右键菜单的消息、菜单项编号。
+ * 面板是 WS_EX_TOOLWINDOW，任务栏里没有它 —— 托盘图标是它唯一的落脚点。*/
+#define WM_TRAY_NOTIFY  (WM_APP + 2)
+#define IDM_TRAY_RELOAD 1
+#define IDM_TRAY_QUIT   2
+#define TRAY_UID        1
 
 #ifndef MOD_NOREPEAT
 #define MOD_NOREPEAT 0x4000
@@ -70,6 +80,10 @@ static char     g_forced_boss[64];
 static bool     g_demo = false;
 /* --table 指定的抗性表路径（空 = 按默认顺序查找）*/
 static wchar_t  g_table_arg[MAX_PATH];
+
+/* 托盘菜单操作后的临时状态提示（例如"抗性表已重读"），几秒后自动消失 */
+static char     g_tray_msg[128];
+static double   g_tray_msg_until;
 
 /* ---------------- 路径 ---------------- */
 
@@ -236,6 +250,12 @@ static void build_view(DlcView* v, char* status, int scap, char* logname, int lc
     }
     logname[0] = 0;
 
+    /* 托盘菜单刚做过操作（例如重读数据表）—— 优先显示这句，几秒后自动回到常态 */
+    if (g_tray_msg[0] && (double)GetTickCount64() / 1000.0 < g_tray_msg_until) {
+        snprintf(status, (size_t)scap, "%s", g_tray_msg);
+        return;
+    }
+
     /* 统一用 "%s"：文案里万一带 % 也不会被当成格式符 */
     if (g_forced_boss[0]) {
         snprintf(status, (size_t)scap, "%s", TXT_ST_FORCED);
@@ -258,6 +278,274 @@ static void build_view(DlcView* v, char* status, int scap, char* logname, int lc
     }
     v->status = status;
     v->logname = logname;
+}
+
+/* ---------------- 抗性表加载 / 重新加载 ---------------- */
+
+/* 定位 + 读取抗性表。启动时和托盘菜单的"重新读取"都走这里。*/
+static void load_table(void)
+{
+    TablePath tp;
+    table_find(&tp, g_table_arg[0] ? g_table_arg : NULL, NULL, NULL);
+    snwprintf_(g_res_path, MAX_PATH, L"%s", tp.path);
+    snwprintf_(g_res_hint, MAX_PATH, L"%s", tp.hint);
+    g_res_forced = tp.forced;
+    g_res_ok = (g_res_path[0] != 0) && res_load_w(&g_res, g_res_path);
+}
+
+/* ---------------- 托盘图标 ----------------
+ *
+ * 面板是 WS_EX_TOOLWINDOW + WS_EX_NOACTIVATE，任务栏里不出现；
+ * 关掉面板只能靠右上角的 ✕ 或 Ctrl+Alt+W。给了个托盘图标之后，
+ * 用户在右下角就能找到它、退出它，也能改了数据表之后让它重读。
+ */
+
+/* ---------------- 托盘诊断日志 ----------------
+ *
+ * 托盘的问题（图标不出现、右键没反应）没法远程观察，所以把关键事件写到
+ * 配置目录的 tray.log：每次启动重写，只有几十行。排查完可以直接删。
+ * 里面记的是 hwnd / hIcon / Shell_NotifyIcon 的返回值和错误码，
+ * 以及托盘回调收到的每一条消息 —— 一看就知道断在哪一步。
+ */
+static FILE*   g_diag;
+static wchar_t g_diag_path[MAX_PATH];
+
+static void diag_open(void)
+{
+    /* 放在 hr-dlc.ini 同目录，文件名换掉后缀 */
+    snwprintf_(g_diag_path, MAX_PATH, L"%s", g_ini_path);
+    size_t n = wcslen(g_diag_path);
+    while (n > 0 && g_diag_path[n - 1] != L'\\' && g_diag_path[n - 1] != L'/') n--;
+    snwprintf_(g_diag_path + n, (size_t)(MAX_PATH - n), L"tray.log");
+    g_diag = _wfopen(g_diag_path, L"wb");
+    if (!g_diag) return;
+    fprintf(g_diag, "Ecliptica DLC tray diagnostic\n");
+    fprintf(g_diag, "exe      = %s\n", TXT_EXE_NAME);
+    fprintf(g_diag, "sizeof(NOTIFYICONDATAW) = %u\n", (unsigned)sizeof(NOTIFYICONDATAW));
+    fprintf(g_diag, "WM_TRAY_NOTIFY = 0x%04X (WM_APP+2)\n", (unsigned)WM_TRAY_NOTIFY);
+    {
+        char u8[MAX_PATH * 3];
+        WideCharToMultiByte(CP_UTF8, 0, g_diag_path, -1, u8, sizeof(u8), NULL, NULL);
+        u8[sizeof(u8) - 1] = 0;
+        fprintf(g_diag, "log file = %s\n", u8);
+    }
+    fflush(g_diag);
+}
+
+static void diag(const char* fmt, ...)
+{
+    if (!g_diag) return;
+    va_list ap;
+    va_start(ap, fmt);
+    vfprintf(g_diag, fmt, ap);
+    va_end(ap);
+    fputc('\n', g_diag);
+    fflush(g_diag);
+}
+
+static HICON    g_tray_icon;
+static NOTIFYICONDATAW g_nid;
+static bool     g_tray_added;
+static int      g_tray_tries;
+static DWORD    g_tray_err;     /* 最后一次 NIM_ADD 的错误码 */
+
+
+/* 运行时画图标：深色底 + 青色圆点，和主程序托盘图标、面板标题栏一致。
+ * 不依赖 .rc/.ico 资源，MinGW 与 MSVC 都能直接编。
+ *
+ * ⚠ **必须用 DIB section，不能用 CreateCompatibleBitmap**：
+ * GDI 只写 RGB、从不写 alpha，32bpp 下 CreateCompatibleBitmap 得到的位图
+ * alpha 全是 0，CreateIconIndirect 之后图标全透明 —— 托盘项加进去了却看不见
+ * （实测 alpha 非 0 的像素 0/256）。所以自己建 DIB 并把 alpha 置 255。*/
+static HICON make_tray_icon(void)
+{
+    int S = GetSystemMetrics(SM_CXSMICON);
+    if (S < 16) S = 16;
+
+    HDC screen = GetDC(NULL);
+    if (!screen) return NULL;
+    HDC dc = CreateCompatibleDC(screen);
+    if (!dc) { ReleaseDC(NULL, screen); return NULL; }
+
+    BITMAPINFO bi;
+    memset(&bi, 0, sizeof(bi));
+    bi.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
+    bi.bmiHeader.biWidth = S;
+    bi.bmiHeader.biHeight = -S;              /* 负高度 = 自上而下 */
+    bi.bmiHeader.biPlanes = 1;
+    bi.bmiHeader.biBitCount = 32;
+    bi.bmiHeader.biCompression = BI_RGB;
+
+    void* bits = NULL;
+    HBITMAP color = CreateDIBSection(dc, &bi, DIB_RGB_COLORS, &bits, NULL, 0);
+    HBITMAP maskb = CreateBitmap(S, S, 1, 1, NULL);
+    if (!color || !bits || !maskb) {
+        if (color) DeleteObject(color);
+        if (maskb) DeleteObject(maskb);
+        DeleteDC(dc);
+        ReleaseDC(NULL, screen);
+        return NULL;
+    }
+
+    HGDIOBJ oldbmp = SelectObject(dc, color);
+    RECT r;
+    r.left = 0; r.top = 0; r.right = S; r.bottom = S;
+    HBRUSH bg = CreateSolidBrush(RGB(20, 25, 35));
+    FillRect(dc, &r, bg);
+    DeleteObject(bg);
+
+    int inset = S / 16;
+    HPEN pen = CreatePen(PS_SOLID, 1, RGB(56, 68, 92));
+    HGDIOBJ op = SelectObject(dc, pen);
+    HGDIOBJ ob = SelectObject(dc, GetStockObject(NULL_BRUSH));
+    Rectangle(dc, inset, inset, S - inset, S - inset);
+
+    int pad = S / 4;
+    /* 和本体区分开：本体是蓝色圆点，DLC 用青绿色圆点，
+     * 这样托盘里两个图标一眼能分清哪个是哪个。*/
+    HBRUSH dot = CreateSolidBrush(RGB(110, 216, 170));
+    SelectObject(dc, dot);
+    SelectObject(dc, GetStockObject(NULL_PEN));
+    Ellipse(dc, pad, pad, S - pad, S - pad);
+
+    SelectObject(dc, ob);
+    SelectObject(dc, op);
+    DeleteObject(pen);
+    DeleteObject(dot);
+    SelectObject(dc, oldbmp);
+
+    /* 补 alpha：不补就是全透明图标 */
+    {
+        unsigned char* px = (unsigned char*)bits;
+        for (int i = 0; i < S * S; i++) px[i * 4 + 3] = 255;
+    }
+
+    HDC mdc = CreateCompatibleDC(screen);
+    if (mdc) {
+        HGDIOBJ om = SelectObject(mdc, maskb);
+        RECT mr;
+        mr.left = 0; mr.top = 0; mr.right = S; mr.bottom = S;
+        HBRUSH black = CreateSolidBrush(RGB(0, 0, 0));
+        FillRect(mdc, &mr, black);
+        DeleteObject(black);
+        SelectObject(mdc, om);
+        DeleteDC(mdc);
+    }
+
+    ICONINFO ii;
+    memset(&ii, 0, sizeof(ii));
+    ii.fIcon = TRUE;
+    ii.hbmMask = maskb;
+    ii.hbmColor = color;
+    HICON ic = CreateIconIndirect(&ii);
+
+    DeleteObject(color);
+    DeleteObject(maskb);
+    DeleteDC(dc);
+    ReleaseDC(NULL, screen);
+    return ic;
+}
+
+static void tray_add(void)
+{
+    memset(&g_nid, 0, sizeof(g_nid));
+    g_nid.cbSize = sizeof(g_nid);
+    g_nid.hWnd = g_hwnd;
+    g_nid.uID = TRAY_UID;
+    g_nid.uFlags = NIF_ICON | NIF_MESSAGE | NIF_TIP;
+    g_nid.uCallbackMessage = WM_TRAY_NOTIFY;
+    g_tray_icon = make_tray_icon();
+    g_nid.hIcon = g_tray_icon ? g_tray_icon : LoadIconW(NULL, IDI_APPLICATION);
+    MultiByteToWideChar(CP_UTF8, 0, TXT_TRAY_TIP, -1, g_nid.szTip,
+                        (int)(sizeof(g_nid.szTip) / sizeof(g_nid.szTip[0])));
+    SetLastError(0);
+    g_tray_added = Shell_NotifyIconW(NIM_ADD, &g_nid) != FALSE;
+    g_tray_err = g_tray_added ? 0 : GetLastError();
+    diag("NIM_ADD ret=%d lastErr=%lu hwnd=0x%p hIcon=0x%p cbSize=%u uID=%u",
+         (int)g_tray_added, (unsigned long)g_tray_err,
+         (void*)g_nid.hWnd, (void*)g_nid.hIcon, (unsigned)g_nid.cbSize, (unsigned)g_nid.uID);
+}
+
+static void tray_remove(void)
+{
+    if (g_tray_added) {
+        Shell_NotifyIconW(NIM_DELETE, &g_nid);
+        g_tray_added = false;
+    }
+    if (g_tray_icon) {
+        DestroyIcon(g_tray_icon);
+        g_tray_icon = NULL;
+    }
+}
+
+static HMENU tray_menu_build(void)
+{
+    HMENU m = CreatePopupMenu();
+    if (!m) return NULL;
+    wchar_t w[128];
+
+    MultiByteToWideChar(CP_UTF8, 0, TXT_TRAY_RELOAD, -1, w, 128);
+    AppendMenuW(m, MF_STRING, IDM_TRAY_RELOAD, w);
+
+    AppendMenuW(m, MF_SEPARATOR, 0, NULL);
+
+    MultiByteToWideChar(CP_UTF8, 0, TXT_TRAY_QUIT, -1, w, 128);
+    AppendMenuW(m, MF_STRING, IDM_TRAY_QUIT, w);
+    return m;
+}
+
+static void tray_command(HWND hwnd, UINT id)
+{
+    diag("tray command id=%u", (unsigned)id);
+    switch (id) {
+    case IDM_TRAY_RELOAD:
+        load_table();
+        refresh_view();
+        snprintf(g_tray_msg, sizeof(g_tray_msg), "%s",
+                 g_res_ok ? TXT_TRAY_LOADED : TXT_ST_NO_TABLE);
+        g_tray_msg_until = (double)GetTickCount64() / 1000.0 + 4.0;
+        InvalidateRect(hwnd, NULL, FALSE);
+        break;
+    case IDM_TRAY_QUIT:
+        PostMessageW(hwnd, WM_CLOSE, 0, 0);
+        break;
+    default:
+        break;
+    }
+}
+
+/* 弹出托盘菜单。
+ *
+ * ⚠ 面板是 WS_EX_NOACTIVATE，直接 SetForegroundWindow 会失败，菜单就"没有主人"：
+ * 一松手/一动鼠标就被系统关掉，看起来像菜单闪一下就没了、根本点不到。
+ * 解决：临时把 NOACTIVATE 去掉，让菜单能拿到前台；菜单结束后立刻恢复，
+ * 所以面板平时仍然不抢 VRChat 的焦点。
+ * 选中的项用 TPM_RETURNCMD 直接取返回值，不依赖 WM_COMMAND 投递 ——
+ * 非激活窗口收菜单结果并不可靠。*/
+static void tray_show_menu(void)
+{
+    HMENU m = tray_menu_build();
+    if (!m) return;
+
+    POINT p;
+    GetCursorPos(&p);
+
+    HWND prev = GetForegroundWindow();
+    LONG_PTR ex = GetWindowLongPtrW(g_hwnd, GWL_EXSTYLE);
+    SetWindowLongPtrW(g_hwnd, GWL_EXSTYLE, ex & ~(LONG_PTR)WS_EX_NOACTIVATE);
+    SetForegroundWindow(g_hwnd);
+
+    UINT cmd = (UINT)TrackPopupMenu(m, TPM_RIGHTBUTTON | TPM_RETURNCMD | TPM_BOTTOMALIGN,
+                                    p.x, p.y, 0, g_hwnd, NULL);
+    diag("TrackPopupMenu -> %u at (%ld,%ld), prev=0x%p", (unsigned)cmd, (long)p.x, (long)p.y,
+         (void*)prev);
+
+    SetWindowLongPtrW(g_hwnd, GWL_EXSTYLE, ex);     /* 立刻恢复：不抢焦点 */
+    DestroyMenu(m);
+    if (prev && prev != g_hwnd && IsWindow(prev)) SetForegroundWindow(prev);
+    PostMessageW(g_hwnd, WM_NULL, 0, 0);
+
+    if (cmd) tray_command(g_hwnd, cmd);
 }
 
 /* ---------------- 绘制 ---------------- */
@@ -308,6 +596,25 @@ static LRESULT CALLBACK wnd_proc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
         return 0;
 
     case WM_TIMER: {
+        /* 开机自启时外壳可能还没就绪，Shell_NotifyIcon 会失败 —— 隔一会儿重试 */
+        if (!g_tray_added && g_tray_tries < 15) {
+            static int tray_tick = 0;
+            if ((++tray_tick % 10) == 0) {          /* 200ms × 10 ≈ 2 秒 */
+                g_tray_tries++;
+                tray_add();
+                if (!g_tray_added && g_tray_tries >= 15) {
+                    /* 重试用尽还是失败：直接在面板上说出来，别让它静默。
+                     * ERROR_ACCESS_DENIED 几乎总是"程序以低完整性运行"——
+                     * 目录带 Low 标签时就会出现，换到普通目录即可。*/
+                    snprintf(g_tray_msg, sizeof(g_tray_msg), "%s",
+                             g_tray_err == ERROR_ACCESS_DENIED ? TXT_TRAY_DENIED
+                                                               : TXT_TRAY_FAIL);
+                    g_tray_msg_until = (double)GetTickCount64() / 1000.0 + 20.0;
+                    diag("tray add gave up after %d tries (err=%lu)",
+                         g_tray_tries, (unsigned long)g_tray_err);
+                }
+            }
+        }
         bool changed = false;
         if (!g_forced_boss[0] && !g_demo) changed = logtail_poll(&g_tail);
         if (g_demo) changed = true;                 /* 演示模式每次刷新都可能换 Boss */
@@ -377,6 +684,30 @@ static LRESULT CALLBACK wnd_proc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
         return 0;
     }
 
+    case WM_TRAY_NOTIFY:
+        diag("tray callback: wp=0x%p lp=0x%08lX (msg=0x%04X)",
+             (void*)wp, (unsigned long)lp, (unsigned)LOWORD(lp));
+        switch (LOWORD(lp)) {
+        case WM_RBUTTONUP:
+        case WM_CONTEXTMENU:
+        case WM_LBUTTONUP:          /* 左键也开菜单：右键若被外壳吞掉还有这条路 */
+            tray_show_menu();
+            return 0;
+        case WM_LBUTTONDBLCLK:
+            /* 双击：把面板提到前面（它是最顶层，但可能被全屏程序压住）*/
+            SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0,
+                         SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+            InvalidateRect(hwnd, NULL, FALSE);
+            return 0;
+        }
+        return 0;
+
+    case WM_COMMAND:
+        /* 正常情况下菜单走 TPM_RETURNCMD，不会到这里；
+         * 保留是为了兜住其它来源（例如以后加右键菜单到面板上）。*/
+        tray_command(hwnd, (UINT)LOWORD(wp));
+        return 0;
+
     case WM_HOTKEY:
         if (wp == HOTKEY_QUIT) PostMessageW(hwnd, WM_CLOSE, 0, 0);
         return 0;
@@ -384,6 +715,7 @@ static LRESULT CALLBACK wnd_proc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
     case WM_DESTROY:
         GetWindowRect(hwnd, &g_last_rect);
         KillTimer(hwnd, 1);
+        tray_remove();
         UnregisterHotKey(hwnd, HOTKEY_QUIT);
         PostQuitMessage(0);
         return 0;
@@ -448,17 +780,11 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR cmdline, int show)
     if (bad) { show_help(); return 0; }
 
     build_paths();
+    diag_open();            /* 托盘诊断日志（tray.log，与 hr-dlc.ini 同目录）*/
     /* 抗性表按 tablepath.c 里的顺序查找；--table 指定了就以它为准。
      * 必须用宽字符版本的加载器：路径里可能有中文，
      * 先转成 UTF-8 再 fopen 会被按 ANSI 代码页解释，直接打不开文件。*/
-    {
-        TablePath tp;
-        table_find(&tp, g_table_arg[0] ? g_table_arg : NULL, NULL, NULL);
-        snwprintf_(g_res_path, MAX_PATH, L"%s", tp.path);
-        snwprintf_(g_res_hint, MAX_PATH, L"%s", tp.hint);
-        g_res_forced = tp.forced;
-    }
-    g_res_ok = (g_res_path[0] != 0) && res_load_w(&g_res, g_res_path);
+    load_table();
     {
         int x = -1, y = -1;
         cfg_load_pos(&x, &y);
@@ -488,7 +814,9 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR cmdline, int show)
         dlcui_layout(&g_layout);
         memdc_rebuild();
         SetLayeredWindowAttributes(g_hwnd, 0, (BYTE)g_alpha, LWA_ALPHA);
+        /* 快捷键可能被别的程序占用；托盘图标才是可靠的退出口 */
         RegisterHotKey(g_hwnd, HOTKEY_QUIT, HOTKEY_ID_MOD, 'W');
+        tray_add();
 
         if (!g_forced_boss[0] && !g_demo) logtail_open(&g_tail, logpath[0] ? logpath : NULL);
         refresh_view();

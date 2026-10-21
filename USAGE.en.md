@@ -431,6 +431,41 @@ on the next start.
 > When to use it: when the HUD covers something in the game you need to click, or covers
 > other software — turning click-through on saves you from moving the window.
 
+### The tray icon (read this when you cannot find or close the window)
+
+The program is a **tool window**, which means:
+
+- **it is not in the taskbar**, and not in `Alt+Tab`;
+- with click-through on, the panel itself cannot be clicked;
+- and if `Ctrl+Alt+T` / `Ctrl+Alt+Q` have been **registered first** by another program (IME,
+  recording tool, Steam, …), there is genuinely nothing left to click.
+
+So the program puts an icon in the **notification area (bottom right)**. It belongs to the shell
+and is unaffected by click-through:
+
+| Action | Effect |
+|---|---|
+| Right-click the tray icon | Opens the menu: Always on top / Mouse click-through / Quit |
+| Double-click the tray icon | Turns click-through off immediately (the fastest recovery) |
+| "Quit" in that menu | Closes the program |
+
+Menu items show **the shortcut that is actually in effect**. If one says "(hotkey in use)", that
+chord could not be registered — use the menu instead.
+
+The program also falls back to another chord automatically: if `Ctrl+Alt+Q` is taken it tries
+`Ctrl+Shift+Q`, then `Ctrl+Alt+F10`; same for click-through (`Ctrl+Alt+T` → `Ctrl+Shift+T` →
+`Ctrl+Alt+F9`).
+
+> **Icon missing?** This is the most common first-run confusion — the icon is not missing, it is
+> collapsed into the **`^` overflow**. Windows 10/11 **hides newly added notification-area icons
+> by default** while the program keeps running. Expand **`^`** and **drag the icon onto the
+> taskbar** to pin it; or use Settings → Personalization → Taskbar → Notification area.
+>
+> The two programs are colour-coded: **the main HUD is a blue dot, the DLC is a teal dot**.
+>
+> If it is not even in the overflow, open Task Manager → **Details**, find `ecliptica-hud-c.exe`
+> and end it.
+
 ---
 
 ## 5. FAQ
@@ -559,6 +594,10 @@ So "it looks too big" may just be the system scaling itself.
 
 You turned on **mouse click-through**. Check whether the title bar has the gold
 `Click-through · Ctrl+Alt+T`. Press `Ctrl+Alt+T` to turn it off.
+
+**If `Ctrl+Alt+T` does nothing** (another program took it), **double-click the tray icon** in the
+notification area to turn click-through off — or right-click it → Mouse click-through.
+See [section 4](#the-tray-icon-read-this-when-you-cannot-find-or-close-the-window).
 
 ### Q10. The panel covers something in the game
 

@@ -1,4 +1,4 @@
-# Ecliptica HUD DLC - Boss 弱点 / 抗性面板
+﻿# Ecliptica HUD DLC - Boss 弱点 / 抗性面板
 #
 #   mingw32-make                中文版 -> hr-dlc.exe
 #   mingw32-make LANG=en        英文版 -> hr-dlc-en.exe
@@ -35,7 +35,7 @@ CFLAGS  ?= -O2 -Wall -Wextra -std=gnu11 -DUNICODE -D_UNICODE \
            -finput-charset=UTF-8 -fexec-charset=UTF-8
 CFLAGS  += $(LANGDEF)
 LDFLAGS ?= -mwindows
-LIBS     = -lgdi32 -luser32
+LIBS     = -lgdi32 -luser32 -lshell32
 
 SRCS = dlc.c dlcui.c logtail.c res.c tablepath.c
 OBJDIR = build/$(LANG)

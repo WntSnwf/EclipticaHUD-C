@@ -22,7 +22,7 @@ set "SRC=dlc.c dlcui.c logtail.c res.c tablepath.c"
 echo [1/2] Building hr-dlc%SUF%.exe (LANG=%LANG%) ...
 cl /nologo /O2 /W3 /std:c11 /DUNICODE /D_UNICODE /utf-8 %LANGDEF% ^
    %SRC% ^
-   /link /SUBSYSTEM:WINDOWS user32.lib gdi32.lib ^
+   /link /SUBSYSTEM:WINDOWS user32.lib gdi32.lib shell32.lib ^
    /OUT:hr-dlc%SUF%.exe
 if errorlevel 1 goto :fail
 

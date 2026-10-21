@@ -1,4 +1,4 @@
-/* uitext_en.h - UI strings: English */
+﻿/* uitext_en.h - UI strings: English */
 #ifndef UITEXT_EN_H
 #define UITEXT_EN_H
 
@@ -68,6 +68,16 @@
     "  " TXT_EXE_NAME " --help          show this help\n" \
     "\n" \
     "Data comes from Weakness&Resistance.txt next to the exe.\n" \
-    "Drag the panel to move it; click X to close; Ctrl+Alt+W to quit.\n"
+    "Drag the panel to move it; click X to close; Ctrl+Alt+W to quit.\n" \
+    "The program has no taskbar button - use the tray icon (right-click) to quit or reload the table.\n"
+
+/* Tray icon (right-click menu). The panel is WS_EX_TOOLWINDOW so it has no
+ * taskbar button; the tray icon is its only place to live. */
+#define TXT_TRAY_TIP     "Ecliptica weakness/resistance - right-click for the menu"
+#define TXT_TRAY_RELOAD  "Reload the resistance table"
+#define TXT_TRAY_QUIT    "Quit"
+#define TXT_TRAY_LOADED  "Resistance table reloaded"
+#define TXT_TRAY_FAIL    "Could not add the tray icon (see tray.log)"
+#define TXT_TRAY_DENIED  "Tray icon denied; run from a normal folder"
 
 #endif

@@ -270,6 +270,43 @@ to following it automatically and wraps up the current run.
 > VRChat**; to quit, use `Ctrl+Alt+Q` or click ✕. `Esc` only works while the window happens
 > to have focus.
 
+### Closing it, and the tray icon
+
+The program is a `WS_EX_TOOLWINDOW` tool window, so **it never appears in the taskbar or in
+Alt+Tab** — that is deliberate, so a permanent overlay does not sit in your taskbar. The price is
+that "how do I close it" has to have another answer, which is why there is a tray icon:
+
+| What you want | How |
+|---|---|
+| Quit | Right-click the **tray icon** in the notification area → Quit |
+| Turn click-through off | Right-click the tray icon → Mouse click-through (or double-click the icon) |
+| Toggle always-on-top | Right-click the tray icon → Always on top |
+| Keyboard | `Ctrl+Alt+Q` to quit, `Ctrl+Alt+T` to toggle click-through |
+
+> **Cannot find the icon on first run? It is most likely collapsed into `^`.**
+> Windows 10/11 **hides newly added notification-area icons by default** — the program is running,
+> it is simply not pinned to the taskbar. Click **`^`** at the right end of the taskbar to expand
+> the overflow, then **drag the icon onto the taskbar** to pin it for good. Alternatively:
+> Settings → Personalization → Taskbar → Notification area, and switch this program on.
+>
+> The two programs are colour-coded: **the main HUD is a blue dot, the DLC is a teal dot**.
+
+**Why the tray icon is mandatory**: once click-through is on, the window receives no mouse
+messages at all. If another program (IME, recording tool, Steam, …) has meanwhile **already
+registered** `Ctrl+Alt+T` / `Ctrl+Alt+Q`, the panel cannot be clicked or dismissed and the only
+way out is killing it from Task Manager. The tray icon belongs to the shell, is unaffected by
+click-through, and is therefore the last clickable escape hatch.
+
+What the program does about it:
+
+- **Hotkey registration degrades gracefully**: if `Ctrl+Alt+Q` is taken it tries
+  `Ctrl+Shift+Q`, then `Ctrl+Alt+F10`; the click-through key does the same
+  (`Ctrl+Alt+T` → `Ctrl+Shift+T` → `Ctrl+Alt+F9`).
+- **The tray menu shows the keys that actually work**; if none could be registered, those items
+  are marked "(hotkey in use)" so you know to use the menu instead.
+- The process is of course still in Task Manager: look under **Details** for
+  `ecliptica-hud-c.exe`.
+
 ### Mouse click-through
 
 After clicking the **Thru** button at the top (or pressing `Ctrl+Alt+T`) the HUD becomes

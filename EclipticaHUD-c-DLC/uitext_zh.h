@@ -1,4 +1,4 @@
-/* uitext_zh.h - 界面文案：简体中文 */
+﻿/* uitext_zh.h - 界面文案：简体中文 */
 #ifndef UITEXT_ZH_H
 #define UITEXT_ZH_H
 
@@ -67,6 +67,16 @@
     "  " TXT_EXE_NAME " --help          显示本帮助\n" \
     "\n" \
     "数据来自 exe 同目录的 Weakness&Resistance.txt。\n" \
-    "拖动面板移动；点 ✕ 关闭；Ctrl+Alt+W 退出。\n"
+    "拖动面板移动；点 ✕ 关闭；Ctrl+Alt+W 退出。\n" \
+    "任务栏里看不到本程序，请用右下角托盘图标（右键菜单）退出或重读抗性表。\n"
+
+/* 托盘图标（右键菜单）。面板是 WS_EX_TOOLWINDOW，任务栏里没有它，
+ * 托盘图标是它唯一的"落脚点"。*/
+#define TXT_TRAY_TIP     "Ecliptica 弱点/抗性 · 右键打开菜单"
+#define TXT_TRAY_RELOAD  "重新读取抗性表"
+#define TXT_TRAY_QUIT    "退出"
+#define TXT_TRAY_LOADED  "抗性表已重新读取"
+#define TXT_TRAY_FAIL    "托盘图标添加失败（详见 tray.log）"
+#define TXT_TRAY_DENIED  "托盘图标被拒绝，请改到普通目录运行"
 
 #endif

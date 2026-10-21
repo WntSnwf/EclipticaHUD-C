@@ -1,4 +1,4 @@
-﻿# Ecliptica HUD DLC — Boss Weakness / Resistance
+# Ecliptica HUD DLC — Boss Weakness / Resistance
 
 A **small standalone add-on** to the [main program](../README.en.md): it follows the same
 VRChat log, works out **which boss is currently being fought**, and then shows that boss's
@@ -127,6 +127,25 @@ Controls:
 | Drag the panel | Move the window; the position is remembered automatically |
 | Click `✕` at the top right | Close |
 | `Ctrl+Alt+W` | Global quit (works regardless of which window has focus) |
+| Right-click the tray icon | Menu: reload the resistance table / quit |
+| Double-click the tray icon | Bring the panel to the front |
+
+> The panel is a `WS_EX_TOOLWINDOW` tool window, so **it never appears in the taskbar or in
+> Alt+Tab**. There is a tray icon in the notification area (same design as the main program, but
+> with a teal dot); after editing `Weakness&Resistance.txt` you do not need to restart — right-click the tray icon
+> and choose "Reload the resistance table". The process is still visible in Task Manager under
+> the **Details** tab as `hr-dlc.exe`.
+>
+> **Cannot find the icon on first run? It is almost certainly collapsed into `^`.** Windows 10/11
+> **hides newly added notification-area icons by default**, while the program keeps running.
+> Click **`^`** at the right end of the taskbar to expand the overflow and **drag the icon onto the
+> taskbar** to pin it; or use Settings → Personalization → Taskbar → Notification area.
+> The colours tell the two programs apart: **main HUD = blue dot, DLC = teal dot**.
+>
+> **If the tray icon does not appear**: `tray.log` next to the exe records the return value and
+> error code of `Shell_NotifyIcon`. `NIM_ADD ret=0 lastErr=5` (access denied) means the folder
+> carries a Windows **low-integrity** label and such a process may not talk to the taskbar —
+> copy the whole folder to a normal location (e.g. the Desktop) and run it from there.
 
 Log discovery follows the same order as the main program:
 

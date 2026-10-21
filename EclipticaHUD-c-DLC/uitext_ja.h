@@ -1,4 +1,4 @@
-/* uitext_ja.h - 画面テキスト：日本語 */
+﻿/* uitext_ja.h - 画面テキスト：日本語 */
 #ifndef UITEXT_JA_H
 #define UITEXT_JA_H
 
@@ -67,6 +67,16 @@
     "  " TXT_EXE_NAME " --help          このヘルプを表示\n" \
     "\n" \
     "データは exe と同じフォルダの Weakness&Resistance.txt から読みます。\n" \
-    "ドラッグで移動、✕ で閉じる、Ctrl+Alt+W で終了。\n"
+    "ドラッグで移動、✕ で閉じる、Ctrl+Alt+W で終了。\n" \
+    "タスクバーには出ません。終了や耐性表の再読み込みはタスクトレイのアイコン（右クリック）から。\n"
+
+/* トレイアイコン（右クリックメニュー）。パネルは WS_EX_TOOLWINDOW なので
+ * タスクバーにボタンが無く、トレイアイコンが唯一の置き場所です。*/
+#define TXT_TRAY_TIP     "Ecliptica 弱点/耐性 · 右クリックでメニュー"
+#define TXT_TRAY_RELOAD  "耐性表を読み直す"
+#define TXT_TRAY_QUIT    "終了"
+#define TXT_TRAY_LOADED  "耐性表を読み直しました"
+#define TXT_TRAY_FAIL    "トレイアイコンを追加できませんでした（tray.log 参照）"
+#define TXT_TRAY_DENIED  "トレイアイコン拒否。通常のフォルダで実行を"
 
 #endif

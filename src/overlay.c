@@ -19,6 +19,7 @@
 #include "compat.h"
 #include <windows.h>
 #include <windowsx.h>
+#include <shellapi.h>
 #include <stdio.h>
 #include <string.h>
 #include <wchar.h>
@@ -26,6 +27,13 @@
 #define TIMER_POLL    100
 #define HOTKEY_QUIT   1
 #define HOTKEY_PIERCE 2
+
+/* 托盘图标：右键菜单的消息、菜单项编号 */
+#define WM_TRAY_NOTIFY  (WM_APP + 1)
+#define IDM_TRAY_TOP    1
+#define IDM_TRAY_PIERCE 2
+#define IDM_TRAY_QUIT   3
+#define TRAY_UID        1
 
 /* 老版 MinGW 头文件缺少这些定义 */
 #ifndef MOD_NOREPEAT
@@ -63,6 +71,16 @@ static char     g_logname[96];
 static RECT     g_last_rect;
 static double   g_dpi_scale = 1.0;
 static wchar_t  g_forced_log[MAX_PATH];
+
+/* 实际注册成功的快捷键（空串 = 注册失败/被占用）。
+ * 托盘菜单靠它告诉用户"现在按哪个键能退出"，而不是永远写死 Ctrl+Alt+Q。*/
+static wchar_t  g_quit_hotkey[48];
+static wchar_t  g_pierce_hotkey[48];
+
+/* 托盘相关（定义在下面，apply_click_through 要用到）*/
+static void tray_update_tip(void);
+static void tray_add(void);
+static void tray_remove(void);
 
 /* 声明 DPI 感知，否则系统会把窗口位图拉伸，在高 DPI 屏上界面发虚、
  * 而且 GetWindowRect 与实际屏幕像素不一致。 */
@@ -211,7 +229,278 @@ static void apply_click_through(void)
         /* 光标不在窗口上时悬停状态要清掉，否则按钮会一直亮着 */
         g_hover = HUD_BTN_NONE;
     }
+    tray_update_tip();
 }
+
+/* ---------------- 托盘图标 ----------------
+ *
+ * 为什么必须有：
+ *   窗口是 WS_EX_TOOLWINDOW + WS_EX_NOACTIVATE，所以任务栏里没有它；
+ *   一旦开了鼠标穿透，窗口本身收不到任何鼠标消息 —— 这时如果
+ *   Ctrl+Alt+T / Ctrl+Alt+Q 又被别的程序占用了，用户**没有任何办法退出**，
+ *   只能去任务管理器强杀。托盘图标属于桌面外壳，不受穿透影响，
+ *   所以它是最后一道可点的逃生口。
+ */
+
+static HICON    g_tray_icon;
+static NOTIFYICONDATAW g_nid;
+static bool     g_tray_added;
+static int      g_tray_tries;   /* 外壳没就绪时的重试计数 */
+
+/* 运行时画一个小图标（深色底 + 青色圆点，和面板标题栏一致），
+ * 这样不用额外的 .rc/.ico 资源，MinGW 与 MSVC 都能直接编。
+ *
+ * ⚠ 这里有个坑：**必须用 DIB section，不能用 CreateCompatibleBitmap**。
+ * GDI 的绘制函数（FillRect / Ellipse …）只写 RGB，**从不写 alpha**；
+ * CreateCompatibleBitmap 在 32bpp 屏上得到的位图 alpha 全是 0，
+ * CreateIconIndirect 之后图标就是"全透明"的 —— 托盘项其实加进去了，
+ * 但画出来什么都看不见（实测 alpha 非 0 的像素 0/256）。
+ * 所以：自己建 32bpp DIB，画完把每个像素的 alpha 置 255。*/
+static HICON make_tray_icon(void)
+{
+    int S = GetSystemMetrics(SM_CXSMICON);
+    if (S < 16) S = 16;
+
+    HDC screen = GetDC(NULL);
+    if (!screen) return NULL;
+    HDC dc = CreateCompatibleDC(screen);
+    if (!dc) { ReleaseDC(NULL, screen); return NULL; }
+
+    BITMAPINFO bi;
+    memset(&bi, 0, sizeof(bi));
+    bi.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
+    bi.bmiHeader.biWidth = S;
+    bi.bmiHeader.biHeight = -S;              /* 负高度 = 自上而下，和 GDI 坐标一致 */
+    bi.bmiHeader.biPlanes = 1;
+    bi.bmiHeader.biBitCount = 32;
+    bi.bmiHeader.biCompression = BI_RGB;
+
+    void* bits = NULL;
+    HBITMAP color = CreateDIBSection(dc, &bi, DIB_RGB_COLORS, &bits, NULL, 0);
+    HBITMAP maskb = CreateBitmap(S, S, 1, 1, NULL);
+    if (!color || !bits || !maskb) {
+        if (color) DeleteObject(color);
+        if (maskb) DeleteObject(maskb);
+        DeleteDC(dc);
+        ReleaseDC(NULL, screen);
+        return NULL;
+    }
+
+    HGDIOBJ oldbmp = SelectObject(dc, color);
+    RECT r;
+    r.left = 0; r.top = 0; r.right = S; r.bottom = S;
+    HBRUSH bg = CreateSolidBrush(RGB(20, 25, 35));
+    FillRect(dc, &r, bg);
+    DeleteObject(bg);
+
+    int inset = S / 16;
+    HPEN pen = CreatePen(PS_SOLID, 1, RGB(56, 68, 92));
+    HGDIOBJ op = SelectObject(dc, pen);
+    HGDIOBJ ob = SelectObject(dc, GetStockObject(NULL_BRUSH));
+    Rectangle(dc, inset, inset, S - inset, S - inset);
+
+    int pad = S / 4;
+    HBRUSH dot = CreateSolidBrush(RGB(118, 188, 255));
+    SelectObject(dc, dot);
+    SelectObject(dc, GetStockObject(NULL_PEN));
+    Ellipse(dc, pad, pad, S - pad, S - pad);
+
+    SelectObject(dc, ob);
+    SelectObject(dc, op);
+    DeleteObject(pen);
+    DeleteObject(dot);
+    SelectObject(dc, oldbmp);
+
+    /* 关键一步：GDI 没写 alpha，这里补成完全不透明，否则图标是透明的 */
+    {
+        unsigned char* px = (unsigned char*)bits;
+        for (int i = 0; i < S * S; i++) px[i * 4 + 3] = 255;
+    }
+
+    /* 全 0 的掩码 = 整块不透明（用颜色位图的形状） */
+    HDC mdc = CreateCompatibleDC(screen);
+    if (mdc) {
+        HGDIOBJ om = SelectObject(mdc, maskb);
+        RECT mr;
+        mr.left = 0; mr.top = 0; mr.right = S; mr.bottom = S;
+        HBRUSH black = CreateSolidBrush(RGB(0, 0, 0));
+        FillRect(mdc, &mr, black);
+        DeleteObject(black);
+        SelectObject(mdc, om);
+        DeleteDC(mdc);
+    }
+
+    ICONINFO ii;
+    memset(&ii, 0, sizeof(ii));
+    ii.fIcon = TRUE;
+    ii.hbmMask = maskb;
+    ii.hbmColor = color;
+    HICON ic = CreateIconIndirect(&ii);
+
+    DeleteObject(color);
+    DeleteObject(maskb);
+    DeleteDC(dc);
+    ReleaseDC(NULL, screen);
+    return ic;
+}
+
+static void tray_update_tip(void)
+{
+    if (!g_tray_added) return;
+    const char* tip = (g_cfg && g_cfg->click_through) ? TXT_TRAY_TIP_PIERCE : TXT_TRAY_TIP;
+    MultiByteToWideChar(CP_UTF8, 0, tip, -1, g_nid.szTip,
+                        (int)(sizeof(g_nid.szTip) / sizeof(g_nid.szTip[0])));
+    g_nid.uFlags = NIF_TIP;
+    Shell_NotifyIconW(NIM_MODIFY, &g_nid);
+    g_nid.uFlags = NIF_ICON | NIF_MESSAGE | NIF_TIP;
+}
+
+static void tray_add(void)
+{
+    memset(&g_nid, 0, sizeof(g_nid));
+    g_nid.cbSize = sizeof(g_nid);
+    g_nid.hWnd = g_hwnd;
+    g_nid.uID = TRAY_UID;
+    g_nid.uFlags = NIF_ICON | NIF_MESSAGE | NIF_TIP;
+    g_nid.uCallbackMessage = WM_TRAY_NOTIFY;
+    if (!g_tray_icon) g_tray_icon = make_tray_icon();
+    g_nid.hIcon = g_tray_icon ? g_tray_icon : LoadIconW(NULL, IDI_APPLICATION);
+    MultiByteToWideChar(CP_UTF8, 0, TXT_TRAY_TIP, -1, g_nid.szTip,
+                        (int)(sizeof(g_nid.szTip) / sizeof(g_nid.szTip[0])));
+    g_tray_added = Shell_NotifyIconW(NIM_ADD, &g_nid) != FALSE;
+    if (g_tray_added) tray_update_tip();
+}
+
+static void tray_remove(void)
+{
+    if (g_tray_added) {
+        Shell_NotifyIconW(NIM_DELETE, &g_nid);
+        g_tray_added = false;
+    }
+    if (g_tray_icon) {
+        DestroyIcon(g_tray_icon);
+        g_tray_icon = NULL;
+    }
+}
+
+/* 菜单项文字：本地化之后拼上实际可用的快捷键；注册失败就直说 */
+static void tray_item_label(wchar_t* out, int cap, const char* label,
+                            const wchar_t* hotkey)
+{
+    wchar_t wl[128];
+    MultiByteToWideChar(CP_UTF8, 0, label, -1, wl, 128);
+    if (hotkey && hotkey[0]) snwprintf_(out, (size_t)cap, L"%s\t%s", wl, hotkey);
+    else {
+        wchar_t wh[128];
+        MultiByteToWideChar(CP_UTF8, 0, TXT_TRAY_NO_HOTKEY, -1, wh, 128);
+        snwprintf_(out, (size_t)cap, L"%s   %s", wl, wh);
+    }
+}
+
+/* 注册全局快捷键，失败时自动退到备选组合。
+ *
+ * 为什么要在意失败：RegisterHotKey 会被别的程序抢走（输入法、录屏、Steam 之类）。
+ * 一旦 Ctrl+Alt+T 没注册上，用户开了穿透就再也点不到面板；
+ * 如果 Ctrl+Alt+Q 也没注册上，那就只能强杀进程了。所以：
+ *   1. 先试文档里写的组合；
+ *   2. 不行就换一个不那么容易撞的组合；
+ *   3. 都失败就把 g_*_hotkey 留空 —— 托盘菜单会显示"快捷键被占用"，
+ *      并保证从托盘还能把穿透关掉、把程序退掉。*/
+static void register_hotkeys(void)
+{
+    static const struct { UINT mod; UINT vk; const wchar_t* name; } QUIT_KEYS[] = {
+        { HOTKEY_ID_MOD, 'Q',                        L"Ctrl+Alt+Q" },
+        { MOD_CONTROL | MOD_SHIFT | MOD_NOREPEAT, 'Q', L"Ctrl+Shift+Q" },
+        { MOD_CONTROL | MOD_ALT | MOD_NOREPEAT, VK_F10, L"Ctrl+Alt+F10" },
+    };
+    static const struct { UINT mod; UINT vk; const wchar_t* name; } PIERCE_KEYS[] = {
+        { HOTKEY_ID_MOD, 'T',                        L"Ctrl+Alt+T" },
+        { MOD_CONTROL | MOD_SHIFT | MOD_NOREPEAT, 'T', L"Ctrl+Shift+T" },
+        { MOD_CONTROL | MOD_ALT | MOD_NOREPEAT, VK_F9, L"Ctrl+Alt+F9" },
+    };
+
+    g_quit_hotkey[0] = 0;
+    g_pierce_hotkey[0] = 0;
+
+    for (size_t i = 0; i < sizeof(QUIT_KEYS) / sizeof(QUIT_KEYS[0]); i++) {
+        if (RegisterHotKey(g_hwnd, HOTKEY_QUIT, QUIT_KEYS[i].mod, QUIT_KEYS[i].vk)) {
+            snwprintf_(g_quit_hotkey, 48, L"%s", QUIT_KEYS[i].name);
+            break;
+        }
+    }
+    for (size_t i = 0; i < sizeof(PIERCE_KEYS) / sizeof(PIERCE_KEYS[0]); i++) {
+        if (RegisterHotKey(g_hwnd, HOTKEY_PIERCE, PIERCE_KEYS[i].mod, PIERCE_KEYS[i].vk)) {
+            snwprintf_(g_pierce_hotkey, 48, L"%s", PIERCE_KEYS[i].name);
+            break;
+        }
+    }
+}
+
+static void tray_command(HWND hwnd, UINT id)
+{
+    switch (id) {
+    case IDM_TRAY_TOP:
+        g_cfg->always_on_top = !g_cfg->always_on_top;
+        SetWindowPos(hwnd, g_cfg->always_on_top ? HWND_TOPMOST : HWND_NOTOPMOST,
+                     0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+        InvalidateRect(hwnd, NULL, FALSE);
+        break;
+    case IDM_TRAY_PIERCE:
+        g_cfg->click_through = !g_cfg->click_through;
+        apply_click_through();
+        InvalidateRect(hwnd, NULL, FALSE);
+        break;
+    case IDM_TRAY_QUIT:
+        PostMessageW(hwnd, WM_CLOSE, 0, 0);
+        break;
+    default:
+        break;
+    }
+}
+
+static void tray_show_menu(void)
+{
+    HMENU m = CreatePopupMenu();
+    if (!m) return;
+
+    wchar_t lbl[256];
+
+    tray_item_label(lbl, 256, TXT_TRAY_TOP, NULL);
+    AppendMenuW(m, MF_STRING | (g_cfg->always_on_top ? MF_CHECKED : 0), IDM_TRAY_TOP, lbl);
+
+    tray_item_label(lbl, 256, TXT_TRAY_PIERCE, g_pierce_hotkey[0] ? g_pierce_hotkey : NULL);
+    AppendMenuW(m, MF_STRING | (g_cfg->click_through ? MF_CHECKED : 0), IDM_TRAY_PIERCE, lbl);
+
+    AppendMenuW(m, MF_SEPARATOR, 0, NULL);
+
+    tray_item_label(lbl, 256, TXT_TRAY_QUIT, g_quit_hotkey[0] ? g_quit_hotkey : NULL);
+    AppendMenuW(m, MF_STRING, IDM_TRAY_QUIT, lbl);
+
+    POINT p;
+    GetCursorPos(&p);
+
+    /* ⚠ 窗口是 WS_EX_NOACTIVATE，直接 SetForegroundWindow 会失败，菜单就"没有主人"：
+     * 一松手/一动鼠标就被系统关掉，看起来像菜单闪一下就没了、根本点不到。
+     * 解决：临时去掉 NOACTIVATE 让菜单能拿前台，菜单结束后立刻恢复
+     * （所以面板平时仍然不抢 VRChat 的焦点）。
+     * 选中项用 TPM_RETURNCMD 取返回值，不依赖 WM_COMMAND 投递 —— 
+     * 非激活窗口收菜单结果并不可靠。*/
+    HWND prev = GetForegroundWindow();
+    LONG_PTR ex = GetWindowLongPtrW(g_hwnd, GWL_EXSTYLE);
+    SetWindowLongPtrW(g_hwnd, GWL_EXSTYLE, ex & ~(LONG_PTR)WS_EX_NOACTIVATE);
+    SetForegroundWindow(g_hwnd);
+
+    UINT cmd = (UINT)TrackPopupMenu(m, TPM_RIGHTBUTTON | TPM_RETURNCMD | TPM_BOTTOMALIGN,
+                                    p.x, p.y, 0, g_hwnd, NULL);
+
+    SetWindowLongPtrW(g_hwnd, GWL_EXSTYLE, ex);     /* 立刻恢复：不抢焦点 */
+    DestroyMenu(m);
+    if (prev && prev != g_hwnd && IsWindow(prev)) SetForegroundWindow(prev);
+    PostMessageW(g_hwnd, WM_NULL, 0, 0);
+
+    if (cmd) tray_command(g_hwnd, cmd);
+}
+
 
 static void apply_scale(void)
 {
@@ -405,6 +694,15 @@ static LRESULT CALLBACK wnd_proc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
         return 0;
 
     case WM_TIMER:
+        /* 开机自启时外壳可能还没准备好，Shell_NotifyIcon 会失败 ——
+         * 每隔约 2 秒重试一次，最多 15 次（共约 30 秒）。*/
+        if (!g_tray_added && g_tray_tries < 15) {
+            static int tick = 0;
+            if (++tick % 20 == 0) {
+                g_tray_tries++;
+                tray_add();
+            }
+        }
         poll_logs();
         InvalidateRect(hwnd, NULL, FALSE);
         return 0;
@@ -527,10 +825,36 @@ static LRESULT CALLBACK wnd_proc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
         }
         return 0;
 
+    case WM_TRAY_NOTIFY:
+        switch (LOWORD(lp)) {
+        case WM_RBUTTONUP:
+        case WM_CONTEXTMENU:
+            tray_show_menu();
+            return 0;
+        case WM_LBUTTONDBLCLK:
+            /* 双击：把穿透关掉（穿透状态下窗口点不到，这里是最直觉的补救）*/
+            if (g_cfg->click_through) {
+                g_cfg->click_through = false;
+                apply_click_through();
+                InvalidateRect(hwnd, NULL, FALSE);
+            } else {
+                SetForegroundWindow(hwnd);
+            }
+            return 0;
+        }
+        return 0;
+
+    case WM_COMMAND:
+        /* 正常情况下菜单走 TPM_RETURNCMD，不会到这里；
+         * 保留是为了兜住其它来源（例如以后给面板加右键菜单）。*/
+        tray_command(hwnd, (UINT)LOWORD(wp));
+        return 0;
+
     case WM_DESTROY:
         /* 窗口此刻仍然有效，先把位置记下来供退出时保存配置 */
         GetWindowRect(hwnd, &g_last_rect);
         KillTimer(hwnd, 1);
+        tray_remove();
         UnregisterHotKey(hwnd, HOTKEY_QUIT);
         UnregisterHotKey(hwnd, HOTKEY_PIERCE);
         PostQuitMessage(0);
@@ -590,8 +914,8 @@ void overlay_run(Config* cfg, bool demo, bool from_start)
                      SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
     }
     apply_alpha();
-    RegisterHotKey(g_hwnd, HOTKEY_QUIT, HOTKEY_ID_MOD, 'Q');
-    RegisterHotKey(g_hwnd, HOTKEY_PIERCE, HOTKEY_ID_MOD, 'T');
+    register_hotkeys();
+    tray_add();                     /* 托盘图标：穿透开着时的唯一逃生口 */
     apply_click_through();          /* 恢复上次退出时的穿透状态 */
 
     ShowWindow(g_hwnd, SW_SHOWNOACTIVATE);

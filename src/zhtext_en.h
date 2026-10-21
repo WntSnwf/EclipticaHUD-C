@@ -103,6 +103,15 @@
 
 /* Status bar */
 #define TXT_PIERCE_BADGE "Click-through · Ctrl+Alt+T"
+
+/* Tray icon (right-click menu). With click-through on and the hotkey taken by
+ * another program, this is the only exit that is still clickable. */
+#define TXT_TRAY_TIP        "Ecliptica HUD · right-click for the menu"
+#define TXT_TRAY_TIP_PIERCE "Ecliptica HUD · click-through is ON (right-click to restore)"
+#define TXT_TRAY_TOP        "Always on top"
+#define TXT_TRAY_PIERCE     "Mouse click-through"
+#define TXT_TRAY_QUIT       "Quit"
+#define TXT_TRAY_NO_HOTKEY  "(hotkey in use)"
 #define TXT_LOG_MISSING  "No VRChat log found"
 #define TXT_LOG_FILE_MISSING "Cannot open the file given to --log"
 #define TXT_WAIT_JOIN    "Waiting to enter Ecliptica"

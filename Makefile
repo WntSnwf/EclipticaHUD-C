@@ -34,7 +34,9 @@ CFLAGS  ?= -O2 -Wall -Wextra -std=gnu11 -DUNICODE -D_UNICODE \
            -finput-charset=UTF-8 -fexec-charset=UTF-8
 CFLAGS  += $(LANGDEF)
 LDFLAGS ?= -mwindows
-LIBS     = -lgdi32 -luser32
+# shell32：托盘图标（Shell_NotifyIcon）。MinGW 默认会带上，显式写出来更清楚，
+# 也方便对照 MSVC 的 build.bat。
+LIBS     = -lgdi32 -luser32 -lshell32
 
 SRCS = src/main.c src/overlay.c src/hud.c src/vlog.c src/parse.c \
        src/stats.c src/evlog.c src/cfg.c src/format.c src/names.c src/evtext.c

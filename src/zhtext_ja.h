@@ -104,6 +104,15 @@
 
 /* ステータスバー */
 #define TXT_PIERCE_BADGE "マウス透過中 · Ctrl+Alt+T で解除"
+
+/* トレイアイコン（右クリックメニュー）。透過がオンで、さらにホットキーが
+ * 他のアプリに取られている場合、ここが唯一クリックできる終了口です。*/
+#define TXT_TRAY_TIP        "Ecliptica HUD · 右クリックでメニュー"
+#define TXT_TRAY_TIP_PIERCE "Ecliptica HUD · マウス透過中（右クリックで戻せます）"
+#define TXT_TRAY_TOP        "常に最前面"
+#define TXT_TRAY_PIERCE     "マウス透過"
+#define TXT_TRAY_QUIT       "終了"
+#define TXT_TRAY_NO_HOTKEY  "（ホットキー使用中）"
 #define TXT_LOG_MISSING  "VRChat のログが見つかりません"
 #define TXT_LOG_FILE_MISSING "--log で指定したファイルを開けません"
 #define TXT_WAIT_JOIN    "Ecliptica への入室待ち"
