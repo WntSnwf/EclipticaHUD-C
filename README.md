@@ -56,9 +56,15 @@ VRChat 世界 **Ecliptica** 的战斗统计覆盖层：跟随 VRChat 日志，�
 | **本局 Run** | 一次进入 Ecliptica 世界到离开 |
 | **本场 Fight** | 一次 Boss 战（同一 Boss 的 `Phase2/Phase3` 视为续战并合并）|
 
-每级都给出：伤害、DPS、承伤、受击次数、最大受击、平均受击、承伤/秒、印记。
+每级都给出：伤害、最高 DPS、DPS、承伤、受击次数、最大受击、平均受击、承伤/秒、阵亡、印记。
 DPS 使用可切换的滑动窗口：**3 / 5 / 10 / 30 / 60 / 120 秒**。
-（早期版本还有一栏「死亡」，已按需求移除——死亡只在事件日志里留一条记录。）
+
+**最高 DPS** 是"到目前为止出现过的峰值"（由 100 ms 定时器持续采样滑窗 DPS 得出，只增不减），
+按阶段还是按本局统计由 `config.ini` 的 `peak_scope` 决定（默认按本局）；对应那一列有值，另外两列显示 `–`。
+
+> 「阵亡」曾从统计里移除过，但事件日志是 512 条环形缓冲——实测一局产生约 2.4 万条事件，
+> 死亡那一行几十秒就被挤出去了，玩家实际上看不到自己死过。所以死亡重新计入统计：
+> 阶段 / 本局 / 本场三级各自累计，同一个人的连刷死亡行只算一次（见下）。
 
 多形态 Boss（例如 `JimBringer → JimBringerPhase2 → JimBringerPhase3`）有两个坑，
 程序都做了处理：
@@ -85,7 +91,7 @@ DPS 使用可切换的滑动窗口：**3 / 5 / 10 / 30 / 60 / 120 秒**。
 
 > **Boss 战的"最初目标"从哪来。** 目标只能来自 `ownership` 行。实测各 Boss
 > 开战到第一条自身 `ownership` 的间隔差异很大：Nan 2 秒、Gravetender 3 秒、
-> Steven 8 秒、Despair 13 秒、DarkMouth 17 秒、JackedPumpkin 20 秒，
+> Steven 8 秒、DarkMouth 17 秒、JackedPumpkin 20 秒，
 > 而 **FlyLord 要 57 秒**（它先放 INTRO SLAP 和一群 `Fly` 小怪）。
 > 这 57 秒里日志确实没有该 Boss 的目标数据，程序显示 `—` 而不是借用
 > 上一阶段敌人的目标——旧版正是因此看起来"最初仇恨目标识别不出来"。
@@ -348,6 +354,8 @@ always_on_top=1
 alpha=210
 scale=100
 stat_window=10
+# peak_scope: 0 = per stage, 1 = per run (main HUD 'peak DPS' row)
+peak_scope=1
 show_event_log=0
 click_through=0
 win_x=538
@@ -363,6 +371,7 @@ world_names=
 | `alpha` | 40 – 255 | 整体不透明度 |
 | `scale` | 60 – 200 | 界面缩放百分比 |
 | `stat_window` | 3 / 5 / 10 / 30 / 60 / 120 | DPS 统计窗口（秒）|
+| `peak_scope` | `0` / `stage` / `1` / `run` | **最高 DPS** 按阶段还是按本局统计（默认 `1` = 本局）|
 | `show_event_log` | 0 / 1 | 是否显示事件日志面板 |
 | `click_through` | 0 / 1 | 鼠标穿透（等价于点顶部「穿透」按钮）|
 | `win_x` / `win_y` | 整数 | 窗口位置，`-1` 表示自动居中偏上 |
@@ -442,7 +451,9 @@ world_names=
 「前 5 字…」。统计内部仍保留完整名字。
 
 **名称映射。** 内置参考实现的显示名映射，例如
-Boss：`FlyLord → Beelzebub`、`AntKing → Khepri`、`Obisidus → Irides`、`ManalyteAncient → Abaddon`；
+Boss：`FlyLord → Beelzebub`、`AntKing → Khepri`、`ManalyteAncient → Abaddon`、
+`Hakli → Ha'kli`、`OnyxPilot → Onyx Pilot`、`QueenVolt → Zaveah`（v0.6 新增；内部名取自真实日志，
+注意 `OnyxPilot` 内部名没有空格，而数据表里写的是 `Onyx Pilot`）；
 阶段：`ProtoColony → Proto Colony`、`VRCHub → VRChat Hub`；
 进度阶段：`0.43 → Antumbral`；
 伤害来源：`(Khepri) attack_Claws2 → Khepri · Claws 2`、`NukeHitbox (BIG) → Nuke (big)`。

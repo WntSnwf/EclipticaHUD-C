@@ -53,11 +53,13 @@
 /* 統計行 */
 #define TXT_ROW_DMG      "与ダメージ"
 #define TXT_ROW_DPS      "DPS"
+#define TXT_ROW_PEAKDPS  "最高 DPS"
 #define TXT_ROW_TAKEN    "被ダメージ"
 #define TXT_ROW_HITS     "被弾"
 #define TXT_ROW_MAXHIT   "最大被弾"
 #define TXT_ROW_AVGHIT   "平均被弾"
 #define TXT_ROW_TPS      "被ダメ/秒"
+#define TXT_ROW_DEATHS   "戦闘不能"
 #define TXT_ROW_TOKENS   "トークン"
 
 /* 情報エリア */

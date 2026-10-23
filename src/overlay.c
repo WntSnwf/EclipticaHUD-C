@@ -592,6 +592,17 @@ static void poll_logs(void)
         if ((n & 0x7F) == 0 && GetTickCount() - start > 12) break;   /* 回放时也让界面喘息 */
     }
     if (r == -1) update_status();
+
+    /* 采样最高 DPS。放在这里（100ms 定时器）而不是绘制里：
+     * 它是"目前为止的峰值"，必须持续比较当前滑窗 DPS 才能不漏掉尖峰；
+     * 只在重绘时采样的话，窗口不刷新就会漏。
+     * 时间基准必须是 g_stats.last_t（日志时间），和 paint() 完全一致 ——
+     * 用 GetTickCount 会算出完全没有意义的 DPS。*/
+    {
+        StatsView pv;
+        stats_view(&g_stats, g_stats.last_t, (double)g_cfg->stat_window, &pv);
+        stats_sample_peak(&g_stats, &pv);
+    }
 }
 
 /* ---------------- 交互 ---------------- */

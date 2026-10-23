@@ -219,9 +219,10 @@ About the `±x` direction:
 
 - `N-x` means **below N**, `N+x` means **above N** (`x` is an increment that is not given).
   The panel marks it with `<` / `>`, so it never reads as "exactly N".
-  Example: `Despair(P1)` has `Electric: 0.7x` (exactly 0.7) while `Despair(P2)` has
-  `Electric: 0.7-x (resist)` (**below** 0.7, i.e. phase 2 resists it more). The panel shows
-  `0.7x` versus `<0.7x`, so the two are distinguishable at a glance.
+  Example: a phase-1 block written `Electric: 0.7x` (exactly 0.7) versus a phase-2 block
+  written `Electric: 0.7-x (resist)` (**below** 0.7, i.e. the later phase resists it more).
+  The panel shows `0.7x` versus `<0.7x`, so the two are distinguishable at a glance.
+  (v0.6 removed the boss that used this notation; the syntax itself is still supported.)
 - When the base is exactly `1`, only the direction is shown (`WEAK` / `RES`); writing `>1x` would be
   more confusing than helpful.
 - An explicit verdict word wins: `1.25-x (resist)` shows `<1.25x ▼RES`.
@@ -407,7 +408,7 @@ The states actually covered:
 |  | Left | Middle | Right |
 |---|---|---|---|
 | **Top** | plain number block (Beelzebub) | multi-line note (NaN) | number table (Jim P1) |
-| **Middle** | long note (Jim P2) | `Others:` block (Jim P3) | multiplier + verdict (Despair P2) |
+| **Middle** | long note (Jim P2) | `Others:` block (Jim P3) | symbolic form (Yuki P2) |
 | **Bottom** | no boss fight | boss missing from the table | (empty) |
 
 | State | Result |

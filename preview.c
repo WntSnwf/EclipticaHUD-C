@@ -117,6 +117,7 @@ int main(int argc, char** argv)
     cfg.alpha = 255;
     cfg.scale = scale;
     cfg.stat_window = 10;
+    cfg.peak_scope = CFG_PEAK_RUN;      /* 与 cfg_default 一致，截图才有代表性 */
     cfg.show_event_log = withlog != 0;
     cfg.ev_filter = EVFILT_ALL;
 

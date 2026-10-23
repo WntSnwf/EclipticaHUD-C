@@ -30,6 +30,7 @@ typedef struct { double t, v; } Sample;
 typedef struct {
     double dmg, taken, max_hit;
     int    hits, tokens;
+    int    deaths;      /* 阵亡次数（同一段连续死亡行只算一次，见 stats.c）*/
 } Agg;
 
 /* 某个敌方单位最近一次已知的归属（"ownership of X transferred to Y"）*/
@@ -69,6 +70,7 @@ typedef struct {
     Tally  attacks[STATS_MAX_TALLIES];
     int    n_attacks;
     bool   sealed;
+    double peak_dps;        /* 本阶段期间出现过的最高 DPS */
 } StageRec;
 
 typedef struct {
@@ -84,6 +86,7 @@ typedef struct {
     Tally  attacks[STATS_MAX_TALLIES];
     int    n_attacks;
     bool   sealed;
+    double peak_dps;        /* 本场 Boss 战期间出现过的最高 DPS */
 } Fight;
 
 typedef struct {
@@ -95,6 +98,7 @@ typedef struct {
     Agg    a;
     int    targets;         /* 仇恨/目标切换次数 */
     int    kills;
+    double peak_dps;        /* 本局期间出现过的最高 DPS */
     Fight  fights[STATS_MAX_FIGHTS];
     int    n_fights;
     StageRec stages[STATS_MAX_STAGES];
@@ -160,6 +164,8 @@ typedef struct {
 
     Agg    stage, run, fight;
     double stage_dps, run_dps, fight_dps, taken_per_sec;
+    /* 最高 DPS：分别来自本阶段 / 本局 / 本场的记录（历史局也有值）*/
+    double peak_stage, peak_run, peak_fight;
 
     double run_elapsed, fight_elapsed, stage_elapsed;
 
@@ -184,6 +190,11 @@ typedef struct {
 } StatsView;
 
 void stats_view(const Stats* s, double now, double win, StatsView* v);
+
+/* 采样最高 DPS。**必须在定时器里周期调用**（不要放在绘制里）：
+ * 它是"到目前为止的峰值"，靠不断比较当前滑窗 DPS 累积出来。
+ * 阶段/局/场次切换时由 stats.c 内部清零重来。*/
+void stats_sample_peak(Stats* s, const StatsView* v);
 
 /* 历史翻页（返回是否发生变化） */
 bool stats_view_run_step(Stats* s, int dir);

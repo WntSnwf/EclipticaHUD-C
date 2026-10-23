@@ -3,4 +3,4 @@ exe      = hr-dlc.exe
 sizeof(NOTIFYICONDATAW) = 976
 WM_TRAY_NOTIFY = 0x8002 (WM_APP+2)
 log file = D:\fake C\杂七杂八\EclipticaHUD\Ecliptica-hud-c\EclipticaHUD-c-DLC\tray.log
-NIM_ADD ret=1 lastErr=0 hwnd=0x00000000005F09F8 hIcon=0x000000001D230F3B cbSize=976 uID=1
+NIM_ADD ret=1 lastErr=0 hwnd=0x0000000000030B80 hIcon=0x0000000000020BA3 cbSize=976 uID=1

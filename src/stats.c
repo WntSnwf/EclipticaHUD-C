@@ -539,6 +539,14 @@ bool stats_on_event(Stats* s, const Event* e)
 
         s->last_death_t = t;
         s->alive_t = 0;                       /* 需要新的存活证据才能再记一次 */
+
+        /* 计数：阶段 / 本局 / 本场都要加。
+         * 以前只写事件日志、不计数，而事件日志是 512 条环形缓冲——
+         * 实测一局有 2.4 万条事件，死亡那行几十秒就被挤出去了，
+         * 玩家根本看不到自己死过。所以必须有这个持久计数。*/
+        s->stage_u.a.deaths++;
+        s->run_u.a.deaths++;
+        if (s->in_fight) s->fight_u.a.deaths++;
         break;
     }
 
@@ -605,6 +613,18 @@ static void merge_run_attacks(const Run* r, Tally* out, int* n)
                       r->fights[i].attacks[j].hits);
 }
 
+void stats_sample_peak(Stats* s, const StatsView* v)
+{
+    if (!s || !v || !s->in_run) return;
+    if (!v->live) return;                 /* 看历史时不要污染当前记录 */
+
+    /* 阶段/场次/局的切换由 stats.c 里的 seal_* 负责清零，这里只管取最大 */
+    if (v->stage_dps > s->cur_stage.peak_dps) s->cur_stage.peak_dps = v->stage_dps;
+    if (v->run_dps > s->cur_run.peak_dps)     s->cur_run.peak_dps   = v->run_dps;
+    if (s->in_fight && v->fight_dps > s->cur_fight.peak_dps)
+        s->cur_fight.peak_dps = v->fight_dps;
+}
+
 void stats_view(const Stats* s, double now, double win, StatsView* v)
 {
     static Tally merged[STATS_MAX_TALLIES];
@@ -639,6 +659,9 @@ void stats_view(const Stats* s, double now, double win, StatsView* v)
     v->stage_dps = unit_dps(&s->stage_u, now, win);
     v->run_dps = unit_dps(&s->run_u, now, win);
     v->fight_dps = unit_dps(&s->fight_u, now, win);
+    v->peak_stage = s->cur_stage.peak_dps;
+    v->peak_run = s->cur_run.peak_dps;
+    v->peak_fight = s->cur_fight.peak_dps;
     v->taken_per_sec = unit_tps(&s->run_u, now, win);
     v->run_elapsed = now - s->run_u.start_t;
     v->stage_elapsed = now - s->stage_u.start_t;
@@ -716,6 +739,11 @@ void stats_view(const Stats* s, double now, double win, StatsView* v)
         v->stage_dps = r->end_t > r->start_t ? r->a.dmg / (r->end_t - r->start_t) : 0;
         v->run_dps = v->stage_dps;
         v->fight_dps = 0;
+        /* 历史局：最高 DPS 用记录里存下的峰值；阶段/本场的历史峰值不做保留，
+         * 显示成"–"（本局那一列是完整可信的）。*/
+        v->peak_run = r->peak_dps;
+        v->peak_stage = 0;
+        v->peak_fight = 0;
         v->taken_per_sec = r->end_t > r->start_t ? r->a.taken / (r->end_t - r->start_t) : 0;
         v->result = r->result;
         v->kills = r->kills;

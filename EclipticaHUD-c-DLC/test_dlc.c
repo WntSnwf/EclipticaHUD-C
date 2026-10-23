@@ -123,19 +123,27 @@ static void test_lookup(void)
     /* 本体程序里 internal -> display 的映射必须能对上数据文件里的名字 */
     CHECK(!strcmp(res_boss_display("FlyLord"), "Beelzebub"), "FlyLord -> Beelzebub");
     CHECK(!strcmp(res_boss_display("AntKing"), "Khepri"), "AntKing -> Khepri");
-    CHECK(!strcmp(res_boss_display("Obisidus"), "Irides"), "Obisidus -> Irides");
     CHECK(!strcmp(res_boss_display("ManalyteAncient"), "Abaddon"), "ManalyteAncient -> Abaddon");
     CHECK(!strcmp(res_boss_display("JackedPumpkin"), "Jacked O' Lantern"), "JackedPumpkin 映射");
     CHECK(!strcmp(res_boss_display("M41D"), "M-41-D"), "M41D -> M-41-D");
     CHECK(!strcmp(res_boss_display("DarkMouth"), "Darkmouth"), "DarkMouth -> Darkmouth");
     CHECK(!strcmp(res_boss_display("Corus"), "Corus"), "表里没写的名字原样返回");
+    /* Ecliptica v0.6 新增的两位 */
+    CHECK(!strcmp(res_boss_display("Hakli"), "Ha'kli"), "Hakli -> Ha'kli（v0.6）");
+    CHECK(!strcmp(res_boss_display("QueenVolt"), "Zaveah"), "QueenVolt -> Zaveah（v0.6）");
+    /* 内部名与显示名相同的两位：没有条目也要原样显示 */
+    CHECK(!strcmp(res_boss_display("Onyx Pilot"), "Onyx Pilot"), "Onyx Pilot 原样显示（v0.6）");
+    CHECK(!strcmp(res_boss_display("Gilgamesh"), "Gilgamesh"), "Gilgamesh 原样显示（v0.6）");
+    /* v0.6 删掉的 Boss 不该再留在映射表里 */
+    CHECK(!strcmp(res_boss_display("Obisidus"), "Obisidus"), "Obisidus 的映射已随 v0.6 移除");
+    CHECK(!strcmp(res_boss_display("Melon"), "Melon"), "Melon 的映射已随 v0.6 移除");
 
     /* 映射之后确实都能查到 */
     static const char* pairs[][2] = {
-        { "FlyLord", "Beelzebub" }, { "AntKing", "Khepri" }, { "Obisidus", "Irides" },
+        { "FlyLord", "Beelzebub" }, { "AntKing", "Khepri" },
         { "ManalyteAncient", "Abaddon" }, { "JackedPumpkin", "Jacked O' Lantern" },
         { "M41D", "M-41-D" }, { "QueenBug", "Vesra" }, { "BuffNoob", "Buff Noob" },
-        { "BlackLily", "The Black Lily" }, { "Melon", "Melgor Johnson" },
+        { "BlackLily", "The Black Lily" },
         { "Gravetender", "The Gravetender" }, { "ConeHead", "Cone Head" },
         { "GoldenGrouch", "Golden Grouch" }, { "Oone", "O-One" }, { "NeoPilot", "Neo Pilot" },
         { "DarkMouth", "Darkmouth" }, { "Nan", "NaN" },
@@ -149,8 +157,8 @@ static void test_lookup(void)
 
     /* 数据文件里直接写内部名的那些（没有映射）也要能查到 */
     static const char* plain[] = {
-        "Maxipuss", "Kakarot", "Pride", "Steven", "Kodama", "NX-Obsidian",
-        "Middleman", "Amaziah", "Despair", "Corus", "Yuki", "Mephiel",
+        "Maxipuss", "Kakarot", "Pride", "Steven", "Kodama",
+        "Middleman", "Amaziah", "Corus", "Yuki", "Mephiel",
         "Pandora", "Bravera"
     };
     for (size_t i = 0; i < sizeof(plain) / sizeof(plain[0]); i++) {
@@ -681,26 +689,45 @@ static void test_new_formats(void)
     printf("\n=== 新写法 ===\n");
 
     /* 1. "0.7-x (resist)" —— 倍率 + 判定混写，0.7 不能丢，
-     *    而且方向必须是"低于 0.7"（二阶比一阶更抗），不能显示成"正好 0.7" */
-    const BossRes* d2 = res_find(&T, "Despair", 2);
-    CHECK(d2 != NULL && !strcmp(d2->name, "Despair(P2)"), "Despair 形态 2 -> Despair(P2)");
-    if (d2) {
-        const ElemVal* e = &d2->v[ELEM_ELECTRIC];
-        CHECK(e->kind == VAL_RESIST, "0.7-x (resist) 判为「抗」");
-        CHECK(e->has_mult, "0.7-x (resist) 保留了倍率");
-        CHECK(fabs(e->mult - 0.7) < 1e-9, "倍率基数 = 0.7");
-        CHECK(e->bound == -1, "方向 = 低于 0.7（不是正好 0.7）");
-        /* 一阶段是正好 0.7，二阶段更低 —— 这才是这条数据的本意 */
-        const BossRes* d1c = res_find(&T, "Despair", 1);
-        CHECK(d1c && d1c->v[ELEM_ELECTRIC].bound == 0,
-              "Despair(P1) 的 0.7x 是精确值（bound = 0）");
-    }
-    const BossRes* d1 = res_find(&T, "Despair", 1);
-    CHECK(d1 != NULL && !strcmp(d1->name, "Despair(P1)"), "Despair 形态 1 -> Despair(P1)");
-    if (d1) {
-        CHECK(d1->v[ELEM_ELECTRIC].kind == VAL_NUM &&
-              fabs(d1->v[ELEM_ELECTRIC].mult - 0.7) < 1e-9,
-              "Despair(P1) 的 Electric = 0.7x 纯数值");
+     *    而且方向必须是"低于 0.7"（二阶比一阶更抗），不能显示成"正好 0.7"。
+     *
+     * ⚠ 这里用**临时表**构造，不再依赖随包数据：原来举的例子是 Despair(P1)/(P2)，
+     * 而 v0.6 已经把这个 Boss 删了。测试不该跟着数据表的增删而红。*/
+    {
+        const char* path = "_tmp_hybrid.txt";
+        FILE* f = fopen(path, "wb");
+        if (f) {
+            fputs("Hybrid(P1)\n"
+                  "Electric: 0.7x\n"          /* 一阶段：正好 0.7 */
+                  "---\n"
+                  "Hybrid(P2)\n"
+                  "Electric: 0.7-x (resist)\n"  /* 二阶段：低于 0.7 */
+                  "---\n", f);
+            fclose(f);
+            ResTable C;
+            if (res_load(&C, path)) {
+                const BossRes* d2 = res_find(&C, "Hybrid", 2);
+                CHECK(d2 != NULL && !strcmp(d2->name, "Hybrid(P2)"),
+                      "0.7-x (resist) 的形态 2 条目能查到");
+                if (d2) {
+                    const ElemVal* e = &d2->v[ELEM_ELECTRIC];
+                    CHECK(e->kind == VAL_RESIST, "0.7-x (resist) 判为「抗」");
+                    CHECK(e->has_mult, "0.7-x (resist) 保留了倍率");
+                    CHECK(fabs(e->mult - 0.7) < 1e-9, "倍率基数 = 0.7");
+                    CHECK(e->bound == -1, "方向 = 低于 0.7（不是正好 0.7）");
+                }
+                const BossRes* d1 = res_find(&C, "Hybrid", 1);
+                CHECK(d1 != NULL && !strcmp(d1->name, "Hybrid(P1)"),
+                      "0.7x 的形态 1 条目能查到");
+                if (d1) {
+                    CHECK(d1->v[ELEM_ELECTRIC].kind == VAL_NUM &&
+                          fabs(d1->v[ELEM_ELECTRIC].mult - 0.7) < 1e-9,
+                          "0.7x 是纯数值");
+                    CHECK(d1->v[ELEM_ELECTRIC].bound == 0, "0.7x 的 bound = 0（精确值）");
+                }
+            }
+            remove(path);
+        }
     }
 
     /* 2. 只给判定、没给倍率的老写法仍然正常工作 */
@@ -819,9 +846,11 @@ static void test_boss_arg(void)
         { "JimBringerPhase3",    "JimBringer",       3, true  },
         { "Jim C. Bringer(P2)",  "Jim C. Bringer",   2, true  },
         { "Jim C. Bringer(P3)",  "Jim C. Bringer",   3, true  },
-        { "Despair",             "Despair",          1, true  },
-        { "DespairPhase2",       "Despair",          2, true  },
-        { "Despair(P2)",         "Despair",          2, true  },
+        { "Despair",             "Despair",          1, false },  /* v0.6 已删除 */
+        { "DespairPhase2",       "Despair",          2, false },  /* 解析仍然正确，只是表里没有 */
+        { "Despair(P2)",         "Despair",          2, false },
+        { "Hakli",               "Hakli",            1, true  },  /* v0.6 新增，表里已有 */
+        { "QueenVolt",           "QueenVolt",        1, true  },
         { "ConeHeadPhase2",      "ConeHead",         2, true  },
         { "DarkMouth(Clone)",    "DarkMouth",        1, true  },
         { "NoSuchBoss",          "NoSuchBoss",       1, false },
@@ -861,6 +890,59 @@ static void test_boss_arg(void)
     }
 }
 
+/* v0.6 验收：新增的 4 只 Boss 能从内部名一路走到表里的段落。
+ * 这条**故意依赖随包数据** —— 它要回答的就是"新 Boss 到底显示不显示得出来"，
+ * 数据表要是漏了这一段，它就该红。 */
+static void test_v06_bosses(void)
+{
+    printf("\n=== v0.6 新增 Boss ===\n");
+    static const char* NEWBOSS[] = { "Hakli", "QueenVolt", "Onyx Pilot", "Gilgamesh" };
+
+    for (int i = 0; i < 4; i++) {
+        const char* disp = res_boss_display(NEWBOSS[i]);
+        const BossRes* r = res_find(&T, NEWBOSS[i], 1);
+        char msg[176];
+        snprintf(msg, sizeof(msg), "%s -> %s 能在表里查到", NEWBOSS[i], disp);
+        CHECK(r != NULL, msg);
+        if (r) {
+            snprintf(msg, sizeof(msg), "%s 的段名就是显示名 %s", NEWBOSS[i], disp);
+            CHECK(!strcmp(r->name, disp), msg);
+        }
+    }
+
+    /* 内部名不带空格时也要能落到 "Onyx Pilot" */
+    CHECK(!strcmp(res_boss_display("OnyxPilot"), "Onyx Pilot"),
+          "OnyxPilot（无空格）也能映射到 Onyx Pilot");
+    CHECK(res_find(&T, "OnyxPilot", 1) != NULL, "OnyxPilot 能查到段");
+
+    /* 这三个内部名是 2026-10-22 的真实日志确认过的：
+     *   now fighting boss: Hakli(Clone) / OnyxPilot(Clone) / Gilgamesh(Clone)
+     * Gilgamesh 还有 Phase2 / Phase3，表里只有一段，靠"去掉形态号再查"回落。*/
+    CHECK(!strcmp(res_boss_display("Hakli"), "Ha'kli"), "日志里的 Hakli -> Ha'kli");
+    CHECK(!strcmp(res_boss_display("OnyxPilot"), "Onyx Pilot"), "日志里的 OnyxPilot -> Onyx Pilot");
+    CHECK(!strcmp(res_boss_display("Gilgamesh"), "Gilgamesh"), "日志里的 Gilgamesh 原样");
+    {
+        const BossRes* g2 = res_find(&T, "Gilgamesh", 2);
+        const BossRes* g3 = res_find(&T, "Gilgamesh", 3);
+        CHECK(g2 != NULL && !strcmp(g2->name, "Gilgamesh"),
+              "Gilgamesh 形态 2 回落到 Gilgamesh 段");
+        CHECK(g3 != NULL && !strcmp(g3->name, "Gilgamesh"),
+              "Gilgamesh 形态 3 回落到 Gilgamesh 段");
+    }
+
+    /* Zaveah 游戏里还没公布数值，表里只有说明行 —— 必须按"说明型条目"正常显示 */
+    const BossRes* z = res_find(&T, "QueenVolt", 1);
+    CHECK(z != NULL && z->is_note && z->n_note >= 1,
+          "Zaveah 目前是说明型条目（数值待补），不能当成空条目");
+
+    /* Ha'kli 的数值要能读对（Shadow 是 1.325x 这种三位小数） */
+    const BossRes* hk = res_find(&T, "Hakli", 1);
+    if (hk) {
+        CHECK(fabs(hk->v[ELEM_FIRE].mult - 0.5) < 1e-9, "Ha'kli 火 = 0.5x");
+        CHECK(fabs(hk->v[ELEM_SHADOW].mult - 1.325) < 1e-9, "Ha'kli 暗 = 1.325x");
+    }
+}
+
 int main(int argc, char** argv)
 {
     if (argc > 2 && !strcmp(argv[1], "--log")) return probe_log(argv[2]);
@@ -883,6 +965,7 @@ int main(int argc, char** argv)
     test_phase_death();
     test_new_formats();
     test_boss_arg();
+    test_v06_bosses();
 
     printf("\n%s：%d 项检查，%d 项失败\n", fails ? "失败" : "全部通过", checks, fails);
     return fails ? 1 : 0;

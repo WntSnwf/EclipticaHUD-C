@@ -29,6 +29,7 @@ void cfg_default(Config* c)
     c->alpha = 210;
     c->scale = 100;
     c->stat_window = 10;
+    c->peak_scope = CFG_PEAK_RUN;
     c->show_event_log = false;
     c->click_through = false;
     c->win_x = -1;
@@ -134,6 +135,12 @@ bool cfg_load(Config* c, const wchar_t* path)
         else if (!strcmp(k, "alpha")) c->alpha = atoi(v);
         else if (!strcmp(k, "scale")) c->scale = atoi(v);
         else if (!strcmp(k, "stat_window")) c->stat_window = atoi(v);
+        else if (!strcmp(k, "peak_scope")) {
+            /* 允许写数字（0/1），也允许写 run / stage，手改不易写错 */
+            if (!strcmp(v, "stage") || !strcmp(v, "STAGE")) c->peak_scope = CFG_PEAK_STAGE;
+            else if (!strcmp(v, "run") || !strcmp(v, "RUN")) c->peak_scope = CFG_PEAK_RUN;
+            else c->peak_scope = atoi(v);
+        }
         else if (!strcmp(k, "show_event_log")) c->show_event_log = atoi(v) != 0;
         else if (!strcmp(k, "click_through")) c->click_through = atoi(v) != 0;
         else if (!strcmp(k, "win_x")) c->win_x = atoi(v);
@@ -153,6 +160,7 @@ bool cfg_load(Config* c, const wchar_t* path)
     if (c->stat_window != 3 && c->stat_window != 5 && c->stat_window != 10 &&
         c->stat_window != 30 && c->stat_window != 60 && c->stat_window != 120)
         c->stat_window = 10;
+    if (c->peak_scope < 0 || c->peak_scope >= CFG_PEAK_COUNT) c->peak_scope = CFG_PEAK_RUN;
     if (c->ev_filter < 0 || c->ev_filter >= EVFILT_COUNT) c->ev_filter = EVFILT_ALL;
     return true;
 }
@@ -168,6 +176,8 @@ bool cfg_save(const Config* c, const wchar_t* path)
     fprintf(f, "alpha=%d\n", c->alpha);
     fprintf(f, "scale=%d\n", c->scale);
     fprintf(f, "stat_window=%d\n", c->stat_window);
+    fprintf(f, "# peak_scope: 0 = per stage, 1 = per run (main HUD 'peak DPS' row)\n");
+    fprintf(f, "peak_scope=%d\n", c->peak_scope);
     fprintf(f, "show_event_log=%d\n", c->show_event_log ? 1 : 0);
     fprintf(f, "click_through=%d\n", c->click_through ? 1 : 0);
     fprintf(f, "win_x=%d\n", c->win_x);

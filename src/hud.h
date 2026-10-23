@@ -14,7 +14,7 @@
 
 /* 逻辑基准尺寸（100% 缩放）*/
 #define HUD_BASE_W 460
-#define HUD_BASE_H 620
+#define HUD_BASE_H 658
 
 enum HudBtn {
     HUD_BTN_NONE = 0,

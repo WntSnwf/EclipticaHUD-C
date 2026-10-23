@@ -33,7 +33,7 @@
 #define C_PURPLE     RGB(196, 168, 255)
 
 /* ---------------- 逻辑版式常量 ---------------- */
-#define TABLE_ROWS 8
+#define TABLE_ROWS 10
 #define ROW_H      19
 #define PAD        10
 #define TITLE_H    26
@@ -530,6 +530,7 @@ typedef struct {
     int    fmt;
     double a, b, c;
     bool   has_c;
+    int    mask;        /* 位 0/1/2 = 阶段/本局/本场 三列是否显示；0 视为全显示 */
     COLORREF col;
 } TableRow;
 
@@ -537,15 +538,17 @@ static COLORREF row_color(int row)
 {
     switch (row) {
     case 1: return C_GOLD;      /* DPS */
-    case 2: return C_RED;       /* 承伤 */
-    case 4: return C_RED;       /* 最大受击 */
-    case 6: return C_RED;       /* 承伤/秒 */
-    case 7: return C_GREEN;     /* 印记 */
+    case 2: return C_GOLD;      /* 最高 DPS */
+    case 3: return C_RED;       /* 承伤 */
+    case 5: return C_RED;       /* 最大受击 */
+    case 7: return C_RED;       /* 承伤/秒 */
+    case 8: return C_RED;       /* 阵亡 */
+    case 9: return C_GREEN;     /* 印记 */
     default: return C_TEXT;
     }
 }
 
-static void draw_table(HDC dc, const HudLayout* L, const StatsView* v)
+static void draw_table(HDC dc, const HudLayout* L, const StatsView* v, int peak_scope)
 {
     const RECT* t = &L->table;
     int cw = (t->right - t->left) / 3;
@@ -574,10 +577,15 @@ static void draw_table(HDC dc, const HudLayout* L, const StatsView* v)
 #define ROW(lbl, f, av, bv, cv, hc) do {                    \
         rows[i].label = lbl; rows[i].fmt = f;               \
         rows[i].a = av; rows[i].b = bv; rows[i].c = cv;     \
-        rows[i].has_c = hc; rows[i].col = row_color(i); i++; } while (0)
+        rows[i].has_c = hc; rows[i].mask = 7;               \
+        rows[i].col = row_color(i); i++; } while (0)
 
     ROW(TXT_ROW_DMG,    FMT_AMOUNT, sg->dmg, rn->dmg, ft->dmg, true);
     ROW(TXT_ROW_DPS,    FMT_RATE,   v->stage_dps, v->run_dps, v->fight_dps, true);
+    /* 最高 DPS：由 config.ini 的 peak_scope 决定按阶段还是按本局统计，
+     * 因此只填对应那一列，另外两列显示 — （和"承伤/秒"行的风格一致）。*/
+    ROW(TXT_ROW_PEAKDPS, FMT_RATE,  v->peak_stage, v->peak_run, v->peak_fight, true);
+    rows[i - 1].mask = 1 << (peak_scope == CFG_PEAK_STAGE ? 0 : 1);
     ROW(TXT_ROW_TAKEN,  FMT_AMOUNT, sg->taken, rn->taken, ft->taken, true);
     ROW(TXT_ROW_HITS,   FMT_INT,    sg->hits, rn->hits, ft->hits, true);
     ROW(TXT_ROW_MAXHIT, FMT_AMOUNT, sg->max_hit, rn->max_hit, ft->max_hit, true);
@@ -586,6 +594,7 @@ static void draw_table(HDC dc, const HudLayout* L, const StatsView* v)
         rn->hits > 0 ? rn->taken / rn->hits : 0,
         ft->hits > 0 ? ft->taken / ft->hits : 0, true);
     ROW(TXT_ROW_TPS,    FMT_RATE,   v->taken_per_sec, v->taken_per_sec, 0, false);
+    ROW(TXT_ROW_DEATHS, FMT_INT,    sg->deaths, rn->deaths, ft->deaths, true);
     ROW(TXT_ROW_TOKENS, FMT_INT,    sg->tokens, rn->tokens, 0, false);
 #undef ROW
 
@@ -597,7 +606,9 @@ static void draw_table(HDC dc, const HudLayout* L, const StatsView* v)
         fill_rect(dc, &rr, (k & 1) ? C_BAND : C_PANEL);
         text_l(dc, t->left + 7, y + 2, g_f_small, C_DIM, rows[k].label);
         for (int c = 0; c < 3; c++) {
-            bool ok = (c < 2) || rows[k].has_c;
+            int mask = rows[k].mask ? rows[k].mask : 7;
+            if (!rows[k].has_c) mask &= ~4;          /* 第三列没有这一项 */
+            bool ok = (mask & (1 << c)) != 0;
             if (!ok) { snprintf_(buf, sizeof(buf), "–"); }
             else {
                 double val = c == 0 ? rows[k].a : (c == 1 ? rows[k].b : rows[k].c);
@@ -833,7 +844,7 @@ void hud_paint(HDC dc, const HudLayout* L, const Config* cfg, const StatsView* v
     /* 内容 */
     draw_info(dc, L, v);
     draw_bossline(dc, L, v);
-    draw_table(dc, L, v);
+    draw_table(dc, L, v, cfg->peak_scope);
     draw_breakdown(dc, L, v);
     if (cfg->show_event_log && L->log_on)
         draw_log(dc, L, ev, cfg->ev_filter, log_scroll, hover_btn);

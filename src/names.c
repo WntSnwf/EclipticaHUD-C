@@ -15,7 +15,6 @@ static const Map BOSSES[] = {
     { "QueenBug",        "Vesra" },
     { "Gravetender",     "The Gravetender" },
     { "BlackLily",       "The Black Lily" },
-    { "Melon",           "Melgor Johnson" },
     { "JackedPumpkin",   "Jacked O' Lantern" },
     { "M41D",            "M-41-D" },
     { "ConeHead",        "Cone Head" },
@@ -24,8 +23,15 @@ static const Map BOSSES[] = {
     { "Oone",            "O-One" },
     { "NeoPilot",        "Neo Pilot" },
     { "JimBringer",      "Jim C. Bringer" },
-    { "Obisidus",        "Irides" },
     { "ManalyteAncient", "Abaddon" },
+    /* Ecliptica v0.6 新增。内部名取自真实日志（2026-10-22）：
+     *   now fighting boss: Hakli(Clone)      -> 显示 Ha'kli
+     *   now fighting boss: OnyxPilot(Clone)  -> 显示 Onyx Pilot
+     *   now fighting boss: Gilgamesh(Clone)  -> 与内部名相同，无需条目
+     * 注意 OnyxPilot 的内部名**没有空格**，数据表里写的是 "Onyx Pilot"。*/
+    { "Hakli",           "Ha'kli" },
+    { "QueenVolt",       "Zaveah" },
+    { "OnyxPilot",       "Onyx Pilot" },
 };
 
 static const Map STAGES[] = {

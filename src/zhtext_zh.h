@@ -51,11 +51,13 @@
 /* 统计行 */
 #define TXT_ROW_DMG      "伤害"
 #define TXT_ROW_DPS      "DPS"
+#define TXT_ROW_PEAKDPS  "最高 DPS"
 #define TXT_ROW_TAKEN    "承伤"
 #define TXT_ROW_HITS     "受击"
 #define TXT_ROW_MAXHIT   "最大受击"
 #define TXT_ROW_AVGHIT   "平均受击"
 #define TXT_ROW_TPS      "承伤/秒"
+#define TXT_ROW_DEATHS   "阵亡"
 #define TXT_ROW_TOKENS   "印记"
 
 /* 信息区 */

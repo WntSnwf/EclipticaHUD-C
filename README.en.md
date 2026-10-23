@@ -93,7 +93,7 @@ and over is not counted twice (a `(Clone)` suffix is merged into the same object
 > **Where a boss fight's "initial target" comes from.** A target can only come from an
 > `ownership` line. Measured across bosses, the gap between the start of a fight and the
 > boss's first `ownership` line varies a lot: 2 seconds for Nan, 3 for Gravetender,
-> 8 for Steven, 13 for Despair, 17 for DarkMouth, 20 for JackedPumpkin, while
+> 8 for Steven, 17 for DarkMouth, 20 for JackedPumpkin, while
 > **FlyLord takes 57 seconds** (it opens with INTRO SLAP and a swarm of `Fly` adds).
 > During those 57 seconds the log really does have no target data for that boss, so the
 > program shows `—` rather than borrowing the previous stage's enemy target — which is
@@ -351,6 +351,8 @@ always_on_top=1
 alpha=210
 scale=100
 stat_window=10
+# peak_scope: 0 = per stage, 1 = per run (main HUD 'peak DPS' row)
+peak_scope=1
 show_event_log=0
 click_through=0
 win_x=538
@@ -366,6 +368,7 @@ world_names=
 | `alpha` | 40 – 255 | Overall opacity |
 | `scale` | 60 – 200 | Interface scale in percent |
 | `stat_window` | 3 / 5 / 10 / 30 / 60 / 120 | DPS window (seconds) |
+| `peak_scope` | `0` / `stage` / `1` / `run` | Whether the **Peak DPS** row is tracked per stage or per run (default `1` = run) |
 | `show_event_log` | 0 / 1 | Whether the event log panel is shown |
 | `click_through` | 0 / 1 | Mouse click-through (equivalent to clicking the **Thru** button at the top) |
 | `win_x` / `win_y` | integers | Window position, `-1` means auto-centred and slightly above centre |
@@ -461,8 +464,10 @@ The statistics still keep the full name internally.
 
 **Name mapping.** The reference implementation's display-name mappings are built in, for
 example
-bosses: `FlyLord → Beelzebub`, `AntKing → Khepri`, `Obisidus → Irides`,
-`ManalyteAncient → Abaddon`;
+bosses: `FlyLord → Beelzebub`, `AntKing → Khepri`, `ManalyteAncient → Abaddon`,
+`Hakli → Ha'kli`, `OnyxPilot → Onyx Pilot`, `QueenVolt → Zaveah` (added in v0.6; the internal
+names come from real logs — note `OnyxPilot` has **no space**, while the data table writes
+`Onyx Pilot`);
 stages: `ProtoColony → Proto Colony`, `VRCHub → VRChat Hub`;
 progress stages: `0.43 → Antumbral`;
 damage sources: `(Khepri) attack_Claws2 → Khepri · Claws 2`, `NukeHitbox (BIG) → Nuke (big)`.

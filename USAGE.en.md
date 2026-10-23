@@ -208,7 +208,7 @@ It splits damage taken by **`who · with which move`**. Each line has the format
 
 ```
 enemy · hit                                1  x20      ← 1 point per hit, 20 hits
-NX-Obsidian · Punch                       26  x2       ← 26 points per hit, 2 hits
+The Black Lily · Punch                    26  x2       ← 26 points per hit, 2 hits
 The Gravetender · Roar                    16  x1       ← a single hit of 16 points
 ```
 
@@ -394,6 +394,7 @@ world_names=
 | `alpha` | `210` | 40 – 255 | Opacity, higher is more opaque | Use the **Opaque/Fade** buttons |
 | `scale` | `100` | 60 – 200 | Interface scale in percent | Use the **Big/Small** buttons |
 | `stat_window` | `10` | 3 / 5 / 10 / 30 / 60 / 120 | **DPS window (seconds)** | **File only**, see 3.2 |
+| `peak_scope` | `1` | `0`/`stage` or `1`/`run` | Whether the **Peak DPS** row is per stage or per run | File only |
 | `show_event_log` | `0` | 0 / 1 | Whether the event log panel is shown | Use the **Log** button |
 | `click_through` | `0` | 0 / 1 | Mouse click-through | Use the **Thru** button or `Ctrl+Alt+T` |
 | `win_x` / `win_y` | automatic | integers | Window position, `-1` = auto-centred | Drag the window |

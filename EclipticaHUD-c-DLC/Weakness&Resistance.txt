@@ -114,15 +114,6 @@ Luminous: 0.25x
 Shadow: 0.25x
 Poison: 1x
 ---
-NX-Obsidian
-Physical: 1.25x
-Fire: 0.75x
-Frost: 0.75x
-Electric: 0.75x
-Luminous: 0.75x
-Shadow: 1.25x
-Poison: 1x
----
 Middleman
 Physical: 1x
 Fire: 1.25x
@@ -132,23 +123,10 @@ Luminous: 0.5x
 Shadow: 1.25x
 Poison: 0.75x
 ---
-Melgor Johnson(P1)
-Physical: 1x
-Fire: 1x
-Frost: 1.5x
-Electric: 0.5x
-Luminous: 1x
-Shadow: 1.25x
-Poison: 1x
----
-Melgor Johnson(P2)
-Physical: 1x
-Fire: 1x
-Frost: 1.5x
-Electric: 0.5+x (resist)
-Luminous: 1x
-Shadow: 1.25x
-Poison: 1x
+Zaveah
+zh: 目前未知
+en: Unknown now
+ja: 現在は不明
 ---
 Amaziah
 Physical: 1x
@@ -168,23 +146,14 @@ Luminous: 0.75x
 Shadow: 1.25x
 Poison: 1.25x
 ---
-Despair(P1)
+Ha'kli
 Physical: 1x
-Fire: 1x
-Frost: 1.25x
-Electric: 0.7x
-Luminous: 1.25x
-Shadow: 0.85x
-Poison: 1.1x
----
-Despair(P2)
-Physical: 1x
-Fire: 1x
-Frost: 1.25x
-Electric: 0.7-x (resist)
-Luminous: 1.25x
-Shadow: 0.85x
-Poison: 1.1x
+Fire: 0.5x
+Frost: 1.5x
+Electric: 1x
+Luminous: 0.75x
+Shadow: 1.25x
+Poison: 1x
 ---
 M-41-D
 Physical: 1x
@@ -193,7 +162,7 @@ Frost: 1x
 Electric: 1.25x
 Luminous: 0.5x
 Shadow: 1.25x
-Poison: 0.25x
+Poison: 0.75x
 ---
 Corus
 Physical: 1x
@@ -240,20 +209,20 @@ Luminous: 1.5x
 Shadow: 1x
 Poison: 1x
 ---
-Irides
-Physical: 1.25x
-Fire: 0.7x
-Frost: 1.15x
-Electric: 1x
-Luminous: 0.5x
-Shadow: 1x
+Onyx Pilot
+Physical: 1x
+Fire: 1.25x
+Frost: 1x
+Electric: 0.75x
+Luminous: 0.75x
+Shadow: 1.25x
 Poison: 1x
 ---
 Golden Grouch
 Physical: 1x
 Fire: 1.25x
 Frost: 0.75x
-Electric: 0.55x
+Electric: 0.5x
 Luminous: 1.5x
 Shadow: 1x
 Poison: 0.5x
@@ -338,3 +307,12 @@ ja: 4つのシグナルタワーすべての充電が完了すると、軌道攻
 Jim C. Bringer(P3)
 Physical: 1x
 Others: 0.75x
+---
+Gilgamesh
+Physical: 1x
+Fire: 1.1x
+Frost: 0.9x
+Electric: 1x
+Luminous: 1.2x
+Shadow: 0.8x
+Poison: 0.8x

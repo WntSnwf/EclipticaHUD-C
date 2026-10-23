@@ -130,8 +130,12 @@ static void test_names(void)
     CHECK(!strcmp(phase_display(1.0), "Eye of the Eclipse"), "阶段进度 1 -> Eye of the Eclipse");
 
     char lbl[64];
-    boss_label("ObisidusPhase2", lbl, sizeof(lbl));
-    CHECK(!strcmp(lbl, "Irides (P2)"), "boss_label 映射基础名并保留形态后缀");
+    boss_label("JimBringerPhase2", lbl, sizeof(lbl));
+    CHECK(!strcmp(lbl, "Jim C. Bringer (P2)"), "boss_label 映射基础名并保留形态后缀");
+    boss_label("QueenVolt", lbl, sizeof(lbl));
+    CHECK(!strcmp(lbl, "Zaveah"), "boss_label v0.6 新映射（QueenVolt -> Zaveah）");
+    boss_label("HakliPhase2", lbl, sizeof(lbl));
+    CHECK(!strcmp(lbl, "Ha'kli (P2)"), "boss_label v0.6 新映射带形态后缀（Hakli -> Ha'kli）");
     boss_label("FlyLord", lbl, sizeof(lbl));
     CHECK(!strcmp(lbl, "Beelzebub"), "boss_label 无后缀");
     boss_label("KodamaPhase3", lbl, sizeof(lbl));
@@ -464,9 +468,86 @@ static void test_death_burst(void)
     e.type = EV_PLAYER_DEAD; e.t = 204;
     CHECK(stats_on_event(&g_st, &e), "静默期过后再死记第 3 条");
 
-    /* 死亡不再产生任何统计量 */
+    /* 死亡不再产生任何统计量（除阵亡计数本身）*/
     CHECK(g_st.run_u.a.hits == 2, "本局受击次数只来自两次受伤事件，与死亡无关");
     CHECK(g_st.run_u.a.tokens == 0, "死亡不影响印记");
+
+    /* 阵亡计数：采纳 3 条死亡 -> 计数必须是 3。
+     * 事件日志只有 512 条环形缓冲，实测一局 2.4 万条事件，死亡那行几十秒就被挤掉，
+     * 所以计数是玩家唯一能长期看到的"我死过几次"。 */
+    CHECK(g_st.run_u.a.deaths == 3, "本局阵亡计数 = 3");
+    CHECK(g_st.stage_u.a.deaths == 3, "本阶段阵亡计数 = 3（本例只有一段）");
+
+    /* 连刷没被采纳的那些不能计数 */
+    {
+        Stats s2;
+        stats_init(&s2);
+        Event e2;
+        memset(&e2, 0, sizeof(e2));
+        e2.type = EV_ROOM_ENTER; strcpy(e2.name, "Ecliptica"); e2.t = 10;
+        stats_on_event(&s2, &e2);
+        e2.type = EV_PLAYER_DEAD;
+        for (int i = 0; i < 20; i++) { e2.t = 11 + i * 0.3; stats_on_event(&s2, &e2); }
+        CHECK(s2.run_u.a.deaths == 1, "20 行连刷只计 1 次阵亡");
+    }
+}
+
+/* 最高 DPS：靠定时器采样累积峰值，阶段/局切换要清零 */
+static void test_peak_dps(void)
+{
+    Stats s;
+    StatsView v;
+    stats_init(&s);
+    Event e;
+    memset(&e, 0, sizeof(e));
+    e.type = EV_ROOM_ENTER; strcpy(e.name, "Ecliptica"); e.t = 100;
+    stats_on_event(&s, &e);
+    e.type = EV_STAGE; strcpy(e.name, "Stage_VRCHub"); e.t = 101;
+    stats_on_event(&s, &e);
+
+    /* 前 10 秒每秒 100 伤害 -> DPS 约 100 */
+    for (int i = 1; i <= 10; i++) {
+        e.type = EV_DEALT; e.amount = 100; e.t = 101 + i;
+        s.last_t = e.t;
+        stats_on_event(&s, &e);
+    }
+    s.last_t = 111;
+    stats_view(&s, s.last_t, 10, &v);
+    stats_sample_peak(&s, &v);
+    CHECK(s.cur_run.peak_dps > 50 && s.cur_run.peak_dps < 150, "本局峰值记录到了 ~100");
+
+    double p1 = s.cur_run.peak_dps;
+
+    /* 来一波爆发：1 秒 1000 伤害 -> 峰值应被抬高 */
+    e.type = EV_DEALT; e.amount = 1000; e.t = 112;
+    s.last_t = e.t;
+    stats_on_event(&s, &e);
+    stats_view(&s, s.last_t, 10, &v);
+    stats_sample_peak(&s, &v);
+    CHECK(s.cur_run.peak_dps > p1, "爆发之后峰值上升");
+
+    /* 峰值只增不减：安静 30 秒后不能掉下来 */
+    double peak_before = s.cur_run.peak_dps;
+    s.last_t = 142;
+    stats_view(&s, s.last_t, 10, &v);
+    stats_sample_peak(&s, &v);
+    CHECK(s.cur_run.peak_dps >= peak_before, "空窗之后峰值不回落");
+
+    /* 换阶段 -> 阶段峰值清零重来，本局峰值保留 */
+    e.type = EV_STAGE; strcpy(e.name, "Stage_CrystalMines"); e.t = 200;
+    stats_on_event(&s, &e);
+    CHECK(s.cur_stage.peak_dps == 0, "换阶段后阶段峰值清零");
+    CHECK(s.cur_run.peak_dps >= peak_before, "换阶段不影响本局峰值");
+
+    /* 看历史局时采样不得污染当前记录 */
+    {
+        double keep = s.cur_run.peak_dps;
+        s.view_run = 0;
+        stats_view(&s, s.last_t, 10, &v);
+        stats_sample_peak(&s, &v);
+        CHECK(s.cur_run.peak_dps == keep, "查看历史局时峰值不被改写");
+        s.view_run = -1;
+    }
 }
 
 /* ---------------- 统计：JimBringer 多阶段（真实日志回归） ----------------
@@ -892,6 +973,7 @@ static void replay_summary(const char* path)
     evlog_init(&g_rpev);
     char line[2048];
     long n = 0, evs = 0, kept = 0, own_all = 0, own_kept = 0;
+    long dead_all = 0, dead_kept = 0;
     while (fgets(line, sizeof(line), f)) {
         size_t l = strlen(line);
         while (l > 0 && (line[l - 1] == '\n' || line[l - 1] == '\r')) line[--l] = 0;
@@ -900,18 +982,33 @@ static void replay_summary(const char* path)
         if (!parse_line(line, &e)) continue;
         evs++;
         if (e.type == EV_OWNERSHIP) own_all++;
+        if (e.type == EV_PLAYER_DEAD) dead_all++;
         if (stats_on_event(&g_rp, &e)) {
             kept++;
-            if (e.type == EV_OWNERSHIP) {
-                own_kept++;
-                evtext_push(&g_rpev, &g_rp, &e);
-            }
+            if (e.type == EV_PLAYER_DEAD) dead_kept++;
+            if (e.type == EV_OWNERSHIP) own_kept++;
+            /* 和 HUD 完全一致：所有被采纳的事件都进事件日志 */
+            evtext_push(&g_rpev, &g_rp, &e);
         }
     }
     fclose(f);
     printf("lines=%ld  events=%ld  accepted=%ld\n", n, evs, kept);
     printf("ownership: parse %ld -> keep %ld (per-object, target really changed)\n",
            own_all, own_kept);
+    printf("player_dead: parse %ld -> keep %ld\n", dead_all, dead_kept);
+    {
+        int in_log = 0, in_log_all = 0;
+        for (int i = 0; i < evlog_count(&g_rpev); i++) {
+            const EvEntry* en = evlog_at(&g_rpev, i);
+            if (en && en->kind == EVK_DEATH) in_log++;
+        }
+        for (int i = 0; i < evlog_count(&g_rpev); i++) {
+            const EvEntry* en = evlog_at(&g_rpev, i);
+            if (en && evlog_filter_match(en->kind, EVFILT_ALL)) in_log_all++;
+        }
+        printf("event log: %d 条, 其中死亡 %d 条, 全部过滤器可见 %d 条 (容量 %d)\n",
+               evlog_count(&g_rpev), in_log, in_log_all, EVLOG_MAX);
+    }
     int tot_kills = 0, tot_targets = 0;
     for (int i = 0; i < g_rp.n_runs; i++) {
         tot_kills += g_rp.runs[i].kills;
@@ -939,6 +1036,7 @@ int main(int argc, char** argv)
     printf("\n=== 统计：异名世界 ===\n");     test_alt_world();
     printf("\n=== 统计：目标追踪 ===\n");     test_target_tracking();
     printf("\n=== 统计：死亡连刷 ===\n");     test_death_burst();
+    printf("\n=== 统计：最高 DPS ===\n");     test_peak_dps();
     printf("\n=== 统计：Jim 多阶段 ===\n");   test_jim_phases();
     printf("\n=== 统计：Boss 初始目标 ===\n"); test_boss_target_not_faked();
     printf("\n=== 统计：间歇期木桩 ===\n");   test_intermission_dummy();

@@ -312,8 +312,11 @@ static void draw_row(HDC dc, int y, int elem, const ElemVal* v, double others, b
         col = C_FAINT;
     } else if (use->has_mult) {
         /* 有倍率就显示倍率。带 ±x 未知增量的要标明方向：
-         * "0.7-x (resist)" 是**低于** 0.7，写成 "0.7x" 会被读成"正好 0.7"。*/
-        snprintf(val, sizeof(val), "%.2f", use->mult);
+         * "0.7-x (resist)" 是**低于** 0.7，写成 "0.7x" 会被读成"正好 0.7"。
+         *
+         * 精度用 3 位小数再抹尾零：数据表里会出现 1.325x 这种三位小数
+         * （v0.6 的 Ha'kli 就是），只按 2 位显示会被四舍五入成 1.33x。*/
+        snprintf(val, sizeof(val), "%.3f", use->mult);
         {
             size_t n = strlen(val);
             while (n > 0 && val[n - 1] == '0') val[--n] = 0;

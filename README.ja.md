@@ -91,7 +91,7 @@ DPS は切り替え可能なスライディングウィンドウを使います�
 
 > **Boss 戦の「最初のターゲット」はどこから来るのか。** ターゲットは `ownership` 行からしか
 > 得られません。実測では、各 Boss が開戦から自身の最初の `ownership` を出すまでの間隔は
-> 大きく異なります：Nan 2 秒、Gravetender 3 秒、Steven 8 秒、Despair 13 秒、DarkMouth 17 秒、
+> 大きく異なります：Nan 2 秒、Gravetender 3 秒、Steven 8 秒、DarkMouth 17 秒、
 > JackedPumpkin 20 秒、そして **FlyLord は 57 秒**（最初に INTRO SLAP と一群の `Fly` 雑魚を
 > 出します）。この 57 秒の間、ログにその Boss のターゲットデータは確かに存在せず、プログラムは
 > `—` を表示し、前段階の敵のターゲットを借りたりはしません —— 旧版が「最初のヘイトターゲットを
@@ -374,6 +374,8 @@ always_on_top=1
 alpha=210
 scale=100
 stat_window=10
+# peak_scope: 0 = per stage, 1 = per run (main HUD 'peak DPS' row)
+peak_scope=1
 show_event_log=0
 click_through=0
 win_x=538
@@ -389,6 +391,7 @@ world_names=
 | `alpha` | 40 – 255 | 全体の不透明度 |
 | `scale` | 60 – 200 | 画面の拡大率（%）|
 | `stat_window` | 3 / 5 / 10 / 30 / 60 / 120 | DPS 集計ウィンドウ（秒）|
+| `peak_scope` | `0` / `stage` / `1` / `run` | **最高 DPS** 行をステージ単位で数えるか、ラン単位で数えるか（既定 `1` = ラン）|
 | `show_event_log` | 0 / 1 | イベントログパネルを表示するか |
 | `click_through` | 0 / 1 | マウス透過（上部の「透過」ボタンを押すのと等価）|
 | `win_x` / `win_y` | 整数 | ウィンドウ位置。`-1` は自動で中央やや上 |
@@ -476,7 +479,9 @@ UTF-8 を生みません。② 表示層では `names_shorten()` が 10 **文字
 「先頭 5 文字…」に短縮します。統計の内部では完全な名前を保持します。
 
 **名前マッピング。** リファレンス実装の表示名マッピングを内蔵しています。例えば
-Boss：`FlyLord → Beelzebub`、`AntKing → Khepri`、`Obisidus → Irides`、`ManalyteAncient → Abaddon`；
+Boss：`FlyLord → Beelzebub`、`AntKing → Khepri`、`ManalyteAncient → Abaddon`、
+`Hakli → Ha'kli`、`OnyxPilot → Onyx Pilot`、`QueenVolt → Zaveah`（v0.6 で追加。内部名は実際のログから取得。
+`OnyxPilot` の内部名には空白が無く、データ表側は `Onyx Pilot` と書かれています）；
 ステージ：`ProtoColony → Proto Colony`、`VRCHub → VRChat Hub`；
 進行ステージ：`0.43 → Antumbral`；
 被ダメージ内訳：`(Khepri) attack_Claws2 → Khepri · Claws 2`、`NukeHitbox (BIG) → Nuke (big)`。
