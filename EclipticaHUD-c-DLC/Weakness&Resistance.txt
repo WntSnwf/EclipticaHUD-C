@@ -124,9 +124,13 @@ Shadow: 1.25x
 Poison: 0.75x
 ---
 Zaveah
-zh: 目前未知
-en: Unknown now
-ja: 現在は不明
+Physical: 1x
+Fire: 0.75x
+Frost: 1x
+Electric: 1.25x
+Luminous: 0.75x
+Shadow: 1.25x
+Poison: 0.75x
 ---
 Amaziah
 Physical: 1x
