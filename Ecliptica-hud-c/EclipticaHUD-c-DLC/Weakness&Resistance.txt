@@ -1,0 +1,322 @@
+Maxipuss
+Physical: 1x
+Fire: 1x
+Frost: 1.25x
+Electric: 1x
+Luminous: 0.7x
+Shadow: 1.3x
+Poison: 1x
+---
+Darkmouth
+Physical: 1x
+Fire: 1x
+Frost: 1x
+Electric: 1x
+Luminous: 0.5x
+Shadow: 1.5x
+Poison: 1.5x
+---
+Kakarot
+Physical: 1x
+Fire: 1x
+Frost: 1x
+Electric: 1x
+Luminous: 1x
+Shadow: 1x
+Poison: 1x
+---
+NaN
+zh: 弱点取决于它当前所处的模式。
+en: The weakness depends on the mode it takes.
+ja: 弱点は現在のモードによって決まります。
+zh: 火模式：弱点是火
+en: Fire mode: weakness is fire
+ja: 火モード：弱点は火
+zh: 冰模式：弱点是冰
+en: Frost mode: weakness is frost
+ja: 氷モード：弱点は氷
+zh: 电模式：弱点是电
+en: Electric mode: weakness is electric
+ja: 電気モード：弱点は電気
+zh: 暗与光模式：没有弱点
+en: Shadow & Luminous mode: no weakness
+ja: 闇と光モード：弱点なし
+---
+Beelzebub
+Physical: 1x
+Fire: 1.25x
+Frost: 0.75x
+Electric: 1x
+Luminous: 0.5x
+Shadow: 1.5x
+Poison: 0.5x
+---
+Buff Noob
+Physical: 1x
+Fire: 1x
+Frost: 1x
+Electric: 1.25x
+Luminous: 0.5x
+Shadow: 1.5x
+Poison: 1x
+---
+Vesra
+Physical: 1x
+Fire: 1.5x
+Frost: 0.75x
+Electric: 1x
+Luminous: 0.75x
+Shadow: 1.25x
+Poison: 0.5x
+---
+Pride
+Physical: 1x
+Fire: 1x
+Frost: 1x
+Electric: 1.25x
+Luminous: 0.5x
+Shadow: 0.5x
+Poison: 1x
+---
+Steven
+Physical: 1x
+Fire: 0.75x
+Frost: 1.25x
+Electric: 1x
+Luminous: 0.5x
+Shadow: 1.5x
+Poison: 1x
+---
+Kodama
+Physical: 0.5x
+Fire: 1x
+Frost: 1x
+Electric: 1x
+Luminous: 1.5x
+Shadow: 1x
+Poison: 1x
+---
+The Gravetender
+Physical: 1x
+Fire: 0.5x
+Frost: 1.25x
+Electric: 1x
+Luminous: 1.25x
+Shadow: 1x
+Poison: 1x
+---
+The Black Lily
+Physical: 1x
+Fire: 1.25x
+Frost: 1.25x
+Electric: 1x
+Luminous: 0.25x
+Shadow: 0.25x
+Poison: 1x
+---
+Middleman
+Physical: 1x
+Fire: 1.25x
+Frost: 1x
+Electric: 1.5x
+Luminous: 0.5x
+Shadow: 1.25x
+Poison: 0.75x
+---
+Zaveah
+Physical: 1x
+Fire: 0.75x
+Frost: 1x
+Electric: 1.25x
+Luminous: 0.75x
+Shadow: 1.25x
+Poison: 0.75x
+---
+Amaziah
+Physical: 1x
+Fire: 0.75x
+Frost: 1.5x
+Electric: 1x
+Luminous: 0.75x
+Shadow: 1.25x
+Poison: 0.5x
+---
+Jacked O' Lantern
+Physical: 1x
+Fire: 1.25x
+Frost: 0.75x
+Electric: 0.75x
+Luminous: 0.75x
+Shadow: 1.25x
+Poison: 1.25x
+---
+Ha'kli
+Physical: 1x
+Fire: 0.5x
+Frost: 1.5x
+Electric: 1x
+Luminous: 0.75x
+Shadow: 1.25x
+Poison: 1x
+---
+M-41-D
+Physical: 1x
+Fire: 0.75x
+Frost: 1x
+Electric: 1.25x
+Luminous: 0.5x
+Shadow: 1.25x
+Poison: 0.75x
+---
+Corus
+Physical: 1x
+Fire: 0.5x
+Frost: 1.5x
+Electric: 1x
+Luminous: 0.75x
+Shadow: 1.25x
+Poison: 1x
+---
+Yuki(P1)
+Physical: 1x
+Fire: 1x
+Frost: 1x
+Electric: 1.25x
+Luminous: 1x
+Shadow: 1x
+Poison: 1x
+---
+Yuki(P2)
+Physical: 1x
+Fire: 1+x (weak)
+Frost: 1-x (resist)
+Electric: 1-x (resist)
+Luminous: 1x
+Shadow: 1x
+Poison: 1x
+---
+Cone Head
+Physical: 1x
+Fire: 1x
+Frost: 1x
+Electric: 1x
+Luminous: 0.7x
+Shadow: 1.3x
+Poison: 1x
+---
+Mephiel
+Physical: 1x
+Fire: 1x
+Frost: 1x
+Electric: 0.75x
+Luminous: 1.5x
+Shadow: 1x
+Poison: 1x
+---
+Onyx Pilot
+Physical: 1x
+Fire: 1.25x
+Frost: 1x
+Electric: 0.75x
+Luminous: 0.75x
+Shadow: 1.25x
+Poison: 1x
+---
+Golden Grouch
+Physical: 1x
+Fire: 1.25x
+Frost: 0.75x
+Electric: 0.5x
+Luminous: 1.5x
+Shadow: 1x
+Poison: 0.5x
+---
+Abaddon
+Physical: 1x
+Fire: 0.5x
+Frost: 0.5x
+Electric: 0.5x
+Luminous: 1.75x
+Shadow: 1x
+Poison: 0.5x
+---
+Khepri
+Physical: 1x
+Fire: 1.25x
+Frost: 0.75x
+Electric: 1x
+Luminous: 0.75x
+Shadow: 1.25x
+Poison: 1x
+---
+Pandora
+Physical: 1x
+Fire: 1.5x
+Frost: 0.3x
+Electric: 0.8x
+Luminous: 1.1x
+Shadow: 0.75x
+Poison: 1x
+---
+Bravera
+Physical: 1x
+Fire: 1.25x
+Frost: 0.5x
+Electric: 0.5x
+Luminous: 0.5x
+Shadow: 1x
+Poison: 1.25x
+---
+O-One
+Physical: 1x
+Fire: 1x
+Frost: 1.25x
+Electric: 1x
+Luminous: 0.75x
+Shadow: 1.25x
+Poison: 1x
+---
+Neo Pilot
+Physical: 1x
+Fire: 1.25x
+Frost: 1x
+Electric: 0.75x
+Luminous: 0.75x
+Shadow: 1.25x
+Poison: 1x
+---
+Jim C. Bringer(P1)
+Physical: 1x
+Fire: 1x
+Frost: 1x
+Electric: 1x
+Luminous: 1x
+Shadow: 1x
+Poison: 1x
+---
+Jim C. Bringer(P2)
+zh: 免疫所有伤害。
+en: All damage blocked.
+ja: すべてのダメージを無効化します。
+zh: 战斗开始2 分钟后，4 座 Signal Tower 会落在竞技场四角。
+en: Once 2 minutes have passed, 4 Signal Towers will drop in each corner of the arena.
+ja: 戦闘開始から2分後、4つのシグナルタワーがアリーナの四隅に出現します。
+zh: 玩家必须站在这些 Signal Tower 内为其充能。
+en: Players must stand inside these Signal Towers to charge them.
+ja: プレイヤーはこれらのシグナルタワーの中に立って充電する必要があります。
+zh: 全部 4 座 Signal Tower 充能完成后，轨道打击会落在 Flipper 上并将其摧毁。
+en: Once all 4 Signal Towers have been charged, an orbital strike will land on the Flipper, destroying it.
+ja: 4つのシグナルタワーすべての充電が完了すると、軌道攻撃がフリッパーに落ちて破壊されます。
+---
+Jim C. Bringer(P3)
+Physical: 1x
+Others: 0.75x
+---
+Gilgamesh
+Physical: 1x
+Fire: 1.1x
+Frost: 0.9x
+Electric: 1x
+Luminous: 1.2x
+Shadow: 0.8x
+Poison: 0.8x

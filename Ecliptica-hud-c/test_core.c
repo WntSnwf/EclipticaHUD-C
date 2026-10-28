@@ -1,0 +1,981 @@
+/* test_core.c - 逻辑测试：解析器 + 统计模型 + 世界识别 + 格式化
+ *
+ * 构建运行：  mingw32-make test
+ * 回放实测：  test_core.exe <日志文件>     打印事件/目标切换的统计摘要
+ *
+ * 测试用的日志行取自真实 VRChat output_log。
+ *
+ * 注意：Stats 结构体较大（几百 KB），实例一律放在静态存储区，不要放栈上。
+ */
+#include "src/parse.h"
+#include "src/stats.h"
+#include "src/evlog.h"
+#include "src/evtext.h"
+#include "src/format.h"
+#include "src/names.h"
+#include <stdio.h>
+#include <string.h>
+#include <math.h>
+
+static int fails = 0;
+static int checks = 0;
+
+#define CHECK(cond, msg) do {                           \
+    checks++;                                           \
+    if (!(cond)) { printf("FAIL: %s\n", msg); fails++; } \
+    else printf("ok  : %s\n", msg);                     \
+} while (0)
+
+static Stats g_st;
+
+static void feed_all(const char** lines, int n)
+{
+    for (int i = 0; i < n; i++) {
+        Event e;
+        if (!parse_line(lines[i], &e)) continue;
+        stats_on_event(&g_st, &e);
+    }
+}
+
+/* ---------------- 解析器 ---------------- */
+
+static void test_parser(void)
+{
+    Event e;
+
+    CHECK(parse_line("2026.09.22 17:40:53 Debug      -  Dealing 74 STRIKE damage", &e)
+          && e.type == EV_DEALT && e.amount == 74 && e.flag,
+          "Dealing 74 STRIKE damage");
+    CHECK(parse_line("2026.09.22 17:41:40 Debug      -  Dealing 38 NON-STRIKE damage", &e)
+          && e.type == EV_DEALT && e.amount == 38 && !e.flag,
+          "Dealing 38 NON-STRIKE damage");
+    CHECK(!parse_line("2026.09.22 17:00:00 Debug      -  Dealing 5 MAGIC damage", &e),
+          "Dealing 5 MAGIC damage 应被忽略");
+
+    CHECK(parse_line("2026.09.22 17:39:32 Debug      -  damage has been taken: 4, from source: machinegunShooter2", &e)
+          && e.type == EV_DAMAGE_TAKEN && e.amount == 4 && !strcmp(e.name, "machinegunShooter2"),
+          "damage has been taken (无括号来源)");
+    CHECK(parse_line("2026.09.22 17:43:13 Debug      -  damage has been taken: 43, from source: (Peltapod) attack_Slam", &e)
+          && e.type == EV_DAMAGE_TAKEN && e.amount == 43 && !strcmp(e.name, "(Peltapod) attack_Slam"),
+          "damage has been taken (带括号来源)");
+    CHECK(parse_line("2026.09.22 17:00:00 Debug      -  damage has been taken: 2, from source: ", &e)
+          && e.type == EV_DAMAGE_TAKEN && e.amount == 2 && e.name[0] == 0,
+          "damage has been taken (来源为空)");
+
+    CHECK(parse_line("2026.09.22 17:32:12 Debug      -  ECLIPTICA - now fighting boss: Amaziah(Clone) on phase: 0.4321299", &e)
+          && e.type == EV_BOSS_FIGHT && !strcmp(e.name, "Amaziah") && fabs(e.progress - 0.4321299) < 1e-6,
+          "now fighting boss");
+    CHECK(parse_line("2026.09.22 17:37:43 Debug      -  ECLIPTICA - now in stage: Stage_ProtoColony on phase: 0.1228879 as class: Nekomancer", &e)
+          && e.type == EV_STAGE && !strcmp(e.name, "ProtoColony") && !strcmp(e.cls, "Nekomancer"),
+          "now in stage");
+    CHECK(parse_line("2026.09.22 17:36:37 Debug      -  ECLIPTICA - now in intermission", &e)
+          && e.type == EV_INTERMISSION, "now in intermission");
+    CHECK(parse_line("2026.09.22 17:00:00 Debug      -  ECLIPTICA - now in lobby", &e)
+          && e.type == EV_LOBBY, "now in lobby");
+    CHECK(parse_line("2026.09.22 17:33:05 Debug      -  ECLIPTICA saving SESSION ID 11508", &e)
+          && e.type == EV_SESSION_SAVE, "saving SESSION ID");
+    CHECK(!parse_line("2026.09.22 17:08:06 Debug      -  ECLIPTICA loaded SESSION ID 22442", &e),
+          "loaded SESSION ID 不是事件");
+    CHECK(!parse_line("2026.09.22 17:08:06 Debug      -  ECLIPTICA Loading Settings...", &e),
+          "Loading Settings 不是事件");
+
+    CHECK(parse_line("2026.09.22 17:36:26 Debug      -  Boss FlyLord dead, personal damage dealt: ", &e)
+          && e.type == EV_BOSS_DEAD && !strcmp(e.name, "FlyLord"), "Boss X dead");
+    CHECK(parse_line("2026.09.22 17:36:26 Debug      -  STRIKE DMG: 4793", &e)
+          && e.type == EV_STRIKE_TOTAL && e.amount == 4793, "STRIKE DMG");
+    CHECK(parse_line("2026.09.22 17:36:26 Debug      -  NON-STRIKE DMG: 615", &e)
+          && e.type == EV_NON_STRIKE_TOTAL && e.amount == 615, "NON-STRIKE DMG");
+
+    CHECK(parse_line("2026.09.23 13:43:17 Debug      -  [Behaviour] Entering Room: Ecliptica - Demo Playtest", &e)
+          && e.type == EV_ROOM_ENTER && !strcmp(e.name, "Ecliptica - Demo Playtest"),
+          "Entering Room");
+    CHECK(parse_line("2026.09.23 13:28:10 Debug      -  [Behaviour] Entering Room: 测试房间", &e)
+          && e.type == EV_ROOM_ENTER && !strcmp(e.name, "测试房间"),
+          "Entering Room（中文世界名）");
+    CHECK(parse_line("2026.09.22 17:08:33 Debug      -  [Behaviour] OnLeftRoom", &e)
+          && e.type == EV_ROOM_LEFT, "OnLeftRoom");
+    /* 死亡相关的两行刻意**不再识别**（一倒/二倒机制无法从日志判定，见 README）。
+     * 这里钉住这个决定：它们必须被当作普通行忽略，不能产生任何事件。*/
+    CHECK(!parse_line("2026.09.22 17:08:20 Debug      -  Local controller dead, switching off.", &e)
+          && e.type == EV_NONE, "Local controller dead 不再当作事件");
+    CHECK(!parse_line("2026.10.25 21:38:59 Debug      -  new specatator", &e)
+          && e.type == EV_NONE, "new specatator 不再当作事件");
+    CHECK(parse_line("2026.09.22 17:37:43 Debug      -  spawn token, True, 55", &e)
+          && e.type == EV_TOKEN_SPAWN && e.flag && e.amount == 55, "spawn token True");
+    CHECK(parse_line("2026.09.23 13:49:18 Debug      -  ownership of Amaziah transferred to Name4", &e)
+          && e.type == EV_OWNERSHIP && !strcmp(e.name, "Amaziah") && !strcmp(e.cls, "Name4"),
+          "ownership transferred（UTF-8 玩家名）");
+    CHECK(parse_line("2026.09.23 13:49:18 Debug      -  ownership of Amaziah(Clone) transferred to Name7", &e)
+          && e.type == EV_OWNERSHIP && !strcmp(e.name, "Amaziah"),
+          "ownership 对象名去掉 (Clone)");
+    CHECK(!parse_line("  at UnityEngine.EventSystems.ExecuteEvents.Execute () [0x00000] in <0>:0 ", &e),
+          "堆栈行不是事件");
+    CHECK(!parse_line("2026.09.22 17:00:00 Debug      -  Tracking boss as defeated in-run.", &e),
+          "Tracking boss as defeated 不是事件");
+    CHECK(!parse_line("", &e), "空行不是事件");
+
+    double t1 = parse_timestamp("2026.09.22 17:40:53 Debug      -  x");
+    double t2 = parse_timestamp("2026.09.22 17:40:54 Debug      -  x");
+    CHECK(fabs((t2 - t1) - 1.0) < 1e-6, "相邻秒时间戳差 = 1");
+    CHECK(t1 > 1700000000.0 && t1 < 1900000000.0, "时间戳量级合理（1970 纪元秒）");
+    CHECK(parse_timestamp("2026.09.06 21:44:44 Debug      -  [Behaviour] OnLeftRoom") > 0,
+          "第二种分隔符也能取到时间戳");
+}
+
+/* ---------------- 名称/来源 ---------------- */
+
+static void test_names(void)
+{
+    CHECK(!strcmp(boss_display("FlyLord"), "Beelzebub"), "Boss 名称映射 FlyLord");
+    CHECK(!strcmp(boss_display("Kodama"), "Kodama"), "Boss 未收录名称原样返回");
+    CHECK(!strcmp(stage_display("ProtoColony"), "Proto Colony"), "阶段名称映射");
+    CHECK(!strcmp(stage_display("VRCHub"), "VRChat Hub"), "阶段名称映射 VRCHub");
+    CHECK(!strcmp(phase_display(0.0), "Primal"), "阶段进度 0 -> Primal");
+    CHECK(!strcmp(phase_display(1.0), "Eye of the Eclipse"), "阶段进度 1 -> Eye of the Eclipse");
+
+    char lbl[64];
+    boss_label("JimBringerPhase2", lbl, sizeof(lbl));
+    CHECK(!strcmp(lbl, "Jim C. Bringer (P2)"), "boss_label 映射基础名并保留形态后缀");
+    boss_label("QueenVolt", lbl, sizeof(lbl));
+    CHECK(!strcmp(lbl, "Zaveah"), "boss_label v0.6 新映射（QueenVolt -> Zaveah）");
+    boss_label("HakliPhase2", lbl, sizeof(lbl));
+    CHECK(!strcmp(lbl, "Ha'kli (P2)"), "boss_label v0.6 新映射带形态后缀（Hakli -> Ha'kli）");
+    boss_label("FlyLord", lbl, sizeof(lbl));
+    CHECK(!strcmp(lbl, "Beelzebub"), "boss_label 无后缀");
+    boss_label("KodamaPhase3", lbl, sizeof(lbl));
+    CHECK(!strcmp(lbl, "Kodama (P3)"), "boss_label 未收录名称原样保留");
+
+    char base[64];
+    boss_base("ManalyteAncientPhase2", base, sizeof(base));
+    CHECK(!strcmp(base, "ManalyteAncient"), "boss_base 去除 Phase 后缀");
+    boss_base("M41D", base, sizeof(base));
+    CHECK(!strcmp(base, "M41D"), "boss_base 不误伤含数字名称");
+    CHECK(boss_phase_no("YukiPhase3") == 3, "boss_phase_no");
+    CHECK(boss_phase_no("Yuki") == 1, "boss_phase_no 无后缀 = 1");
+    CHECK(is_player_summon("Neko12") && !is_player_summon("Neko"), "玩家召唤物判定");
+
+    char who[32], atk[32];
+    source_display("(Khepri) attack_Claws2", who, sizeof(who), atk, sizeof(atk));
+    CHECK(!strcmp(who, "Khepri") && !strcmp(atk, "Claws 2"), "来源拆分 + 美化");
+    source_display("machinegunShooter2", who, sizeof(who), atk, sizeof(atk));
+    CHECK(!strcmp(who, "enemy") && !strcmp(atk, "Machinegun Shooter 2"), "无括号来源 -> enemy");
+    source_display("attack_Spit (2)", who, sizeof(who), atk, sizeof(atk));
+    CHECK(!strcmp(atk, "Spit"), "纯数字括号后缀被丢弃");
+    source_display("NukeHitbox (BIG)", who, sizeof(who), atk, sizeof(atk));
+    CHECK(!strcmp(atk, "Nuke (big)"), "非数字括号后缀保留为小写");
+    source_display("([Missing Key \"e_VirtueBeam\"]) damageTick", who, sizeof(who), atk, sizeof(atk));
+    CHECK(!strcmp(who, "Black Virtue") && !strcmp(atk, "Damage Tick"), "Missing Key 映射");
+}
+
+/* 本节的玩家名一律用占位符（NameN / PlayerNameN）与全角填充字符，
+ * 不出现任何真实玩家名。全角串只用重复假名，用来覆盖"按字符而非字节截断"。*/
+
+/* ---------------- 过长玩家名截断 ----------------
+ *
+ * 日志里出现过 14 个日文/中文字符的玩家名（42 字节），显示层要收成
+ * "前 5 字…"。必须按 UTF-8 字符边界截，否则会留下半个字符 ——
+ * 界面上就是乱码方块（实测过）。 */
+static void test_long_names(void)
+{
+    char buf[96];
+
+    /* UTF-8 字符数按字符算，不是按字节算 */
+    CHECK(names_utf8_len("Name100") == 7, "ASCII 名长度 = 7");
+    CHECK(names_utf8_len("ああああああああああああああ") == 14, "14 个全角字符 = 14");
+    CHECK(names_utf8_len("") == 0, "空串长度 = 0");
+
+    /* 不超过 10 字符：原样保留 */
+    names_shorten("Name100", buf, sizeof(buf));
+    CHECK(!strcmp(buf, "Name100"), "7 字符名原样保留");
+    names_shorten("PlayerName", buf, sizeof(buf));
+    CHECK(!strcmp(buf, "PlayerName"), "10 字符名原样保留（边界）");
+
+    /* 超过 10 字符：前 5 字 + 省略号 */
+    names_shorten("ああああああああああああああ", buf, sizeof(buf));
+    CHECK(!strcmp(buf, "あああああ…"), "14 字符名 -> 前 5 字 + …");
+    CHECK(names_utf8_len(buf) == 6, "截断后是 5 个字符 + 省略号");
+    CHECK(strlen(buf) == 18, "截断后 18 字节（5x3 + 3）");
+
+    names_shorten("PlayerName12", buf, sizeof(buf));
+    CHECK(!strcmp(buf, "Playe…"), "12 字符名 -> 前 5 字 + …");
+    names_shorten("PlayerName123", buf, sizeof(buf));
+    CHECK(!strcmp(buf, "Playe…"), "13 字符名 -> 前 5 字 + …");
+    names_shorten("PlayerName1", buf, sizeof(buf));
+    CHECK(!strcmp(buf, "Playe…"), "11 字符名 -> 前 5 字 + …");
+
+    /* 截断结果必须是合法 UTF-8：不能以连续字节结尾 */
+    CHECK(((unsigned char)buf[strlen(buf) - 1] & 0xC0) != 0x80 ||
+          (unsigned char)buf[strlen(buf) - 1] == 0xA6, "截断结果不在半个字符上结束");
+
+    /* 缓冲区太小时不能写出界，也不能留下半个字符 */
+    char tiny[8];
+    memset(tiny, 0x7F, sizeof(tiny));
+    names_shorten("ああああああああああああああ", tiny, 4);
+    CHECK(strlen(tiny) <= 3, "缓冲区过小时不越界");
+    CHECK(((unsigned char)tiny[0] & 0xC0) != 0x80, "小缓冲区结果不从连续字节开始");
+
+    /* 真实日志里的那条 ownership：玩家名经解析后应完整保留（64 字节够用） */
+    Event e;
+    CHECK(parse_line("2026.10.03 19:09:48 Debug      -  ownership of Middleman transferred to ああああああああああああああ", &e)
+          && e.type == EV_OWNERSHIP, "14 字玩家名的 ownership 能解析");
+    CHECK(!strcmp(e.name, "Middleman"), "对象名正确");
+    CHECK(!strcmp(e.cls, "ああああああああああああああ"), "玩家名完整保留（42 字节 < EV_CLASS_CAP）");
+    CHECK(names_utf8_len(e.cls) == 14, "解析后字符数仍是 14");
+}
+
+/* ---------------- 世界识别 ---------------- */
+
+static void test_world_aliases(void)
+{
+    names_set_world_aliases(NULL);
+    CHECK(names_is_ecl_world("Ecliptica - Demo Playtest"), "官方世界名被识别");
+    CHECK(names_is_ecl_world("ecliptica"), "大小写不敏感");
+    CHECK(!names_is_ecl_world("Sample Combat World"), "未登记的房间名不误判");
+    CHECK(!names_is_ecl_world("Yuki Room"), "无关世界不被误判");
+    CHECK(!names_is_ecl_world(""), "空世界名不被误判");
+
+    names_set_world_aliases("Sample Combat World|另一个测试世界");
+    CHECK(names_is_ecl_world("Sample Combat World"), "配置登记的世界名生效");
+    CHECK(names_is_ecl_world("Sample Combat World (v2)"), "子串匹配生效");
+    CHECK(names_is_ecl_world("另一个测试世界"), "配置登记的中文世界名生效");
+    CHECK(!names_is_ecl_world("Cookie Clicker VR"), "未登记的其它世界仍不误判");
+    names_set_world_aliases(NULL);
+}
+
+/* ---------------- 格式化 ---------------- */
+
+static void test_format(void)
+{
+    char b[64];
+    fmt_amount(b, sizeof(b), 7);        CHECK(!strcmp(b, "7"), "fmt_amount 小数");
+    fmt_amount(b, sizeof(b), 12345);    CHECK(!strcmp(b, "12,345"), "fmt_amount 千分位");
+    fmt_amount(b, sizeof(b), 250000);   CHECK(!strcmp(b, "250.0k"), "fmt_amount k");
+    fmt_amount(b, sizeof(b), 7340000);  CHECK(!strcmp(b, "7.34M"), "fmt_amount M");
+    fmt_rate(b, sizeof(b), 12.34);      CHECK(!strcmp(b, "12.3"), "fmt_rate 一位小数");
+    fmt_rate(b, sizeof(b), 1234.0);     CHECK(!strcmp(b, "1,234"), "fmt_rate 整数千分位");
+    fmt_duration(b, sizeof(b), 75);     CHECK(!strcmp(b, "01:15"), "fmt_duration 分秒");
+    fmt_duration(b, sizeof(b), 3725);   CHECK(!strcmp(b, "1:02:05"), "fmt_duration 时分秒");
+    fmt_amount(b, sizeof(b), 100000);   CHECK(!strcmp(b, "100.0k"), "fmt_amount 边界 100000");
+}
+
+/* ---------------- 统计：完整一局 ---------------- */
+
+static void test_stats_run(void)
+{
+    static const char* script[] = {
+        "2026.09.22 20:00:00 Debug      -  [Behaviour] Entering Room: Ecliptica - Demo Playtest",
+        "2026.09.22 20:00:01 Debug      -  ECLIPTICA - now in stage: Stage_ProtoColony on phase: 0.1 as class: Nekomancer",
+        "2026.09.22 20:00:02 Debug      -  spawn token, False, 0",
+        "2026.09.22 20:00:02 Debug      -  spawn token, True, 55",
+        "2026.09.22 20:00:03 Debug      -  ECLIPTICA saving SESSION ID 11508",
+        "2026.09.22 20:00:04 Debug      -  Dealing 100 STRIKE damage",
+        "2026.09.22 20:00:05 Debug      -  Dealing 50 NON-STRIKE damage",
+        "2026.09.22 20:00:06 Debug      -  damage has been taken: 40, from source: (Khepri) attack_Claws2",
+        "2026.09.22 20:00:07 Debug      -  damage has been taken: 10, from source: (Khepri) attack_Claws2",
+        "2026.09.22 20:00:08 Debug      -  Local controller dead, switching off.",
+        "2026.09.22 20:00:20 Debug      -  ECLIPTICA - now fighting boss: FlyLord(Clone) on phase: 0.06",
+        "2026.09.22 20:00:21 Debug      -  Dealing 200 STRIKE damage",
+        "2026.09.22 20:00:22 Debug      -  damage has been taken: 120, from source: (FlyLord) attack_Bite",
+        "2026.09.22 20:00:23 Debug      -  ownership of FlyLord transferred to OtherPlayer",
+        "2026.09.22 20:00:24 Debug      -  Boss FlyLord dead, personal damage dealt: ",
+        "2026.09.22 20:00:24 Debug      -  STRIKE DMG: 4793",
+        "2026.09.22 20:00:24 Debug      -  NON-STRIKE DMG: 615",
+        "2026.09.22 20:00:30 Debug      -  ECLIPTICA - now in intermission",
+        "2026.09.22 20:00:40 Debug      -  [Behaviour] OnLeftRoom",
+    };
+    const int N = (int)(sizeof(script) / sizeof(script[0]));
+
+    stats_init(&g_st);
+    feed_all(script, N);
+
+    CHECK(!g_st.in_world && !g_st.in_run, "离开世界后 in_world / in_run 均为 false");
+    CHECK(g_st.n_runs == 1, "记录到 1 局");
+    CHECK(g_st.stage_no == 1, "阶段数 = 1");
+    CHECK(fabs(g_st.cur_run.a.dmg - 350) < 0.01, "本局伤害 = 100+50+200 = 350");
+    CHECK(fabs(g_st.cur_run.a.taken - 170) < 0.01, "本局承伤 = 40+10+120 = 170");
+    CHECK(g_st.cur_run.a.hits == 3, "本局受击 = 3");
+    CHECK(g_st.cur_run.a.tokens == 1, "本局印记 = 1");
+    CHECK(g_st.cur_run.kills == 1, "本局击倒 Boss = 1");
+    CHECK(g_st.cur_run.targets == 1, "Boss 目标切换 = 1");
+    CHECK(g_st.cur_run.n_fights == 1, "Boss 战历史 = 1 场");
+    CHECK(g_st.cur_run.n_stages == 1, "阶段历史 = 1 段");
+
+    const Fight* f = &g_st.cur_run.fights[0];
+    CHECK(!strcmp(f->disp, "Beelzebub"), "Boss 显示名 = Beelzebub");
+    CHECK(f->killed == 1 && f->lost == 0, "本场已击杀");
+    CHECK(fabs(f->a.dmg - 200) < 0.01, "本场伤害 = 200（阶段伤害不计入本场）");
+    CHECK(fabs(f->a.taken - 120) < 0.01, "本场承伤 = 120");
+    CHECK(f->kill_strike == 4793 && f->kill_nonstrike == 615, "击杀结算 STRIKE/NON-STRIKE");
+    CHECK(strcmp(g_st.cur_run.result, "LEFT") == 0, "本局结果 = LEFT");
+
+    CHECK(fabs(g_st.cur_run.stages[0].a.dmg - 150) < 0.01, "阶段伤害 = 150");
+    CHECK(fabs(g_st.cur_run.stages[0].a.taken - 50) < 0.01, "阶段承伤 = 50");
+    CHECK(g_st.cur_run.stages[0].a.tokens == 1, "阶段印记 = 1");
+
+    CHECK(g_st.cur_run.stages[0].n_attacks == 1, "阶段来源条目 = 1");
+    CHECK(!strcmp(g_st.cur_run.stages[0].attacks[0].who, "Khepri"), "阶段来源 who");
+    CHECK(!strcmp(g_st.cur_run.stages[0].attacks[0].attack, "Claws 2"), "阶段来源 attack");
+    CHECK(fabs(g_st.cur_run.stages[0].attacks[0].total - 50) < 0.01, "阶段来源总量 = 50");
+    CHECK(g_st.cur_run.stages[0].attacks[0].hits == 2, "阶段来源次数 = 2");
+}
+
+/* ---------------- 统计：房间名与官方不同的世界 ---------------- */
+
+static void test_alt_world(void)
+{
+    static const char* script[] = {
+        "2026.09.23 13:28:10 Debug      -  [Behaviour] Entering Room: Sample Combat World",
+        "2026.09.23 13:44:53 Debug      -  Dealing 59 STRIKE damage",
+        "2026.09.23 13:45:43 Debug      -  ECLIPTICA - now in stage: Stage_VRCHub on phase: 0.4367217 as class: Thaumaturge",
+        "2026.09.23 13:49:09 Debug      -  ECLIPTICA - now fighting boss: Amaziah(Clone) on phase: 0.4367217",
+        "2026.09.23 13:49:18 Debug      -  ownership of Amaziah transferred to Name4",
+        "2026.09.23 13:49:21 Debug      -  Dealing 35 STRIKE damage",
+        "2026.09.23 13:50:00 Debug      -  damage has been taken: 29, from source: kickProject",
+    };
+    const int N = (int)(sizeof(script) / sizeof(script[0]));
+
+    /* 未登记房间名时：进房不开局，靠 ECLIPTICA 日志惰性开局 */
+    names_set_world_aliases(NULL);
+    stats_init(&g_st);
+    feed_all(script, N);
+    CHECK(g_st.in_run && g_st.in_world, "未登记的房间名靠 ECLIPTICA 日志开局");
+    CHECK(g_st.stage_no == 1, "识别到阶段");
+    CHECK(!strcmp(g_st.stage_disp, "VRChat Hub"), "阶段名映射正确");
+    CHECK(fabs(g_st.run_u.a.dmg - 94) < 0.01, "伤害累计 = 59+35");
+    CHECK(g_st.in_fight, "识别到 Boss 战");
+    CHECK(!strcmp(g_st.cur_fight.disp, "Amaziah"), "Boss 名称正确");
+    CHECK(g_st.targets_total == 1, "识别到 Boss 目标切换");
+
+    /* 用 world_names 登记后：进房即开局 */
+    names_set_world_aliases("Sample Combat World");
+    stats_init(&g_st);
+    feed_all(script, N);
+    CHECK(g_st.in_run, "登记过房间名后进房即开局");
+    names_set_world_aliases(NULL);
+
+    /* 没有房间行（HUD 从日志尾部开始跟随）时也必须能惰性开局 */
+    stats_init(&g_st);
+    feed_all(script + 1, N - 1);            /* 跳过 Entering Room 那一行 */
+    CHECK(g_st.in_run, "缺少房间行时靠 ECLIPTICA 日志惰性开局");
+    CHECK(fabs(g_st.run_u.a.dmg - 94) < 0.01, "惰性开局后伤害仍然统计");
+}
+
+/* ---------------- 统计：目标追踪（逐对象去重） ---------------- */
+
+static void test_target_tracking(void)
+{
+    static const char* junk[] = {
+        "EnemyController", "EnemyController (2)", "Ice Squid", "FrostSac",
+        "Robowhel", "Lizord", "SpiritDeer", "LavaSac", "Manalyte",
+        "Peltapod", "Furry", "Carnie", "Token4", "ConeEnforcer",
+        "Big Robot", "TooTired"
+    };
+    Event e;
+
+    stats_init(&g_st);
+    memset(&e, 0, sizeof(e));
+    e.type = EV_ROOM_ENTER; strcpy(e.name, "Ecliptica"); e.t = 1;
+    stats_on_event(&g_st, &e);
+
+    /* 杂兵 / 召唤物 / 道具的归属变化同样追踪（不只 Boss）*/
+    for (int i = 0; i < (int)(sizeof(junk) / sizeof(junk[0])); i++) {
+        e.type = EV_OWNERSHIP;
+        strcpy(e.name, junk[i]);
+        strcpy(e.cls, "SomeoneElse");
+        e.t = 3 + i * 0.1;
+        CHECK(stats_on_event(&g_st, &e), "非 Boss 的 ownership 也被采纳");
+    }
+    CHECK(g_st.targets_total == 16, "16 个不同对象各计一次目标变化");
+
+    /* 同一对象、同一目标重复上报：判为无变化，不重复计数 */
+    e.type = EV_OWNERSHIP; strcpy(e.name, "Ice Squid"); strcpy(e.cls, "SomeoneElse"); e.t = 20;
+    CHECK(!stats_on_event(&g_st, &e), "同一对象同一目标不重复计数");
+    CHECK(g_st.targets_total == 16, "计数不变");
+
+    /* 同一对象换人：计一次 */
+    strcpy(e.cls, "PlayerB"); e.t = 21;
+    CHECK(stats_on_event(&g_st, &e), "同一对象换目标被采纳");
+    CHECK(g_st.targets_total == 17, "计数 +1");
+    CHECK(!strcmp(g_st.target_player, "PlayerB"), "当前目标 = PlayerB");
+
+    /* Boss 也同样追踪，并且带 (Clone) 后缀时归并到同一个对象 */
+    e.type = EV_BOSS_FIGHT; strcpy(e.name, "Amaziah"); e.t = 30;
+    stats_on_event(&g_st, &e);
+    e.type = EV_OWNERSHIP; strcpy(e.name, "Amaziah(Clone)"); strcpy(e.cls, "PlayerC"); e.t = 31;
+    CHECK(stats_on_event(&g_st, &e), "Boss 目标切换被采纳");
+    CHECK(g_st.targets_total == 18, "计数 +1");
+
+    StatsView v;
+    stats_view(&g_st, 31, 10, &v);
+    CHECK(v.target && !strcmp(v.target, "PlayerC"), "视图优先给出当前 Boss 的目标");
+    CHECK(v.target_is_boss, "识别出该目标是 Boss");
+    CHECK(fabs(v.target_secs) < 1e-6, "目标持续时间从切换时刻起算");
+
+    /* 没有 ownership 的世界：目标为空，界面显示占位符 */
+    stats_init(&g_st);
+    e.type = EV_ROOM_ENTER; strcpy(e.name, "Sample Combat World"); e.t = 1;
+    stats_on_event(&g_st, &e);
+    e.type = EV_BOSS_FIGHT; strcpy(e.name, "DarkMouth"); e.t = 2;
+    stats_on_event(&g_st, &e);
+    e.type = EV_DEALT; e.amount = 40; e.t = 3;
+    stats_on_event(&g_st, &e);
+    stats_view(&g_st, 3, 10, &v);
+    CHECK(v.target && v.target[0] == 0, "无 ownership 时目标为空（界面显示 —）");
+    CHECK(g_st.targets_total == 0, "无 ownership 时切换次数为 0");
+}
+
+/* ---------------- 事件日志：死亡连刷只记一条 ----------------
+ *
+ * 死亡次数已经不再计入统计，但事件日志仍要记一条，且不能一次死亡刷满屏。
+ * 所以这里直接断言 stats_on_event() 的返回值（true = 采纳并写日志）。 */
+
+/* 最高 DPS：靠定时器采样累积峰值，阶段/局切换要清零 */
+static void test_peak_dps(void)
+{
+    Stats s;
+    StatsView v;
+    stats_init(&s);
+    Event e;
+    memset(&e, 0, sizeof(e));
+    e.type = EV_ROOM_ENTER; strcpy(e.name, "Ecliptica"); e.t = 100;
+    stats_on_event(&s, &e);
+    e.type = EV_STAGE; strcpy(e.name, "Stage_VRCHub"); e.t = 101;
+    stats_on_event(&s, &e);
+
+    /* 前 10 秒每秒 100 伤害 -> DPS 约 100 */
+    for (int i = 1; i <= 10; i++) {
+        e.type = EV_DEALT; e.amount = 100; e.t = 101 + i;
+        s.last_t = e.t;
+        stats_on_event(&s, &e);
+    }
+    s.last_t = 111;
+    stats_view(&s, s.last_t, 10, &v);
+    stats_sample_peak(&s, &v);
+    CHECK(s.cur_run.peak_dps > 50 && s.cur_run.peak_dps < 150, "本局峰值记录到了 ~100");
+
+    double p1 = s.cur_run.peak_dps;
+
+    /* 来一波爆发：1 秒 1000 伤害 -> 峰值应被抬高 */
+    e.type = EV_DEALT; e.amount = 1000; e.t = 112;
+    s.last_t = e.t;
+    stats_on_event(&s, &e);
+    stats_view(&s, s.last_t, 10, &v);
+    stats_sample_peak(&s, &v);
+    CHECK(s.cur_run.peak_dps > p1, "爆发之后峰值上升");
+
+    /* 峰值只增不减：安静 30 秒后不能掉下来 */
+    double peak_before = s.cur_run.peak_dps;
+    s.last_t = 142;
+    stats_view(&s, s.last_t, 10, &v);
+    stats_sample_peak(&s, &v);
+    CHECK(s.cur_run.peak_dps >= peak_before, "空窗之后峰值不回落");
+
+    /* 换阶段 -> 阶段峰值清零重来，本局峰值保留 */
+    e.type = EV_STAGE; strcpy(e.name, "Stage_CrystalMines"); e.t = 200;
+    stats_on_event(&s, &e);
+    CHECK(s.cur_stage.peak_dps == 0, "换阶段后阶段峰值清零");
+    CHECK(s.cur_run.peak_dps >= peak_before, "换阶段不影响本局峰值");
+
+    /* 看历史局时采样不得污染当前记录 */
+    {
+        double keep = s.cur_run.peak_dps;
+        s.view_run = 0;
+        stats_view(&s, s.last_t, 10, &v);
+        stats_sample_peak(&s, &v);
+        CHECK(s.cur_run.peak_dps == keep, "查看历史局时峰值不被改写");
+        s.view_run = -1;
+    }
+}
+
+/* ---------------- 统计：JimBringer 多阶段（真实日志回归） ----------------
+ *
+ * 取自 output_log_2026-09-24_18-20-39.txt：
+ *   19:01:44  ownership of JimBringer       transferred to Name8
+ *   19:04:35  Boss JimBringer dead
+ *   19:04:35  ECLIPTICA - now fighting boss: JimBringerPhase2(Clone)   (回声：JimBringer)
+ *   19:07:19  ownership of JimBringerPhase2 transferred to PlayerName12
+ *   19:12:21  ECLIPTICA - now fighting boss: JimBringerPhase3(Clone)
+ *   19:12:22  Boss JimBringerPhase2 dead     <- 上一形态的击杀行迟到
+ *   19:24:31  Boss JimBringerPhase3 dead
+ */
+static void test_jim_phases(void)
+{
+    static const char* script[] = {
+        "2026.09.24 18:57:37 Debug      -  ECLIPTICA - now in stage: Stage_Bringer on phase: 1 as class: Spellhammer",
+        "2026.09.24 18:58:10 Debug      -  ECLIPTICA - now fighting boss: JimBringer(Clone) on phase: 1",
+        "2026.09.24 19:01:44 Debug      -  ownership of JimBringer transferred to Name8",
+        "2026.09.24 19:04:35 Debug      -  Boss JimBringer dead, personal damage dealt: ",
+        "2026.09.24 19:04:35 Debug      -  ECLIPTICA - now fighting boss: JimBringerPhase2(Clone) on phase: 1",
+        "2026.09.24 19:04:35 Debug      -  ECLIPTICA - now fighting boss: JimBringer(Clone) on phase: 1",
+        "2026.09.24 19:04:36 Debug      -  ECLIPTICA - now fighting boss: JimBringerPhase2(Clone) on phase: 1",
+        "2026.09.24 19:07:19 Debug      -  ownership of JimBringerPhase2 transferred to PlayerName12",
+    };
+    const int N = (int)(sizeof(script) / sizeof(script[0]));
+    Event e;
+    StatsView v;
+
+    stats_init(&g_st);
+    feed_all(script, N);
+
+    /* 二阶段：目标必须是二阶段自己的，而不是一阶段遗留的 Name8 */
+    CHECK(g_st.in_fight, "二阶段处于 Boss 战中");
+    CHECK(!strcmp(g_st.cur_fight.name, "JimBringerPhase2"), "二阶段场次名 = JimBringerPhase2");
+    CHECK(g_st.cur_fight.phase_no == 2, "二阶段形态号 = 2");
+    stats_view(&g_st, g_st.last_t, 10, &v);
+    CHECK(v.target && !strcmp(v.target, "PlayerName12"),
+          "二阶段显示二阶段的目标（不是一阶段遗留的 Name8）");
+    CHECK(v.target_is_boss, "该目标被识别为 Boss 目标");
+    CHECK(fabs(v.target_secs) < 1e-6, "目标持续时间自二阶段切换时刻起算");
+
+    /* 三阶段开战：应当是同一只 Boss 的续战 */
+    memset(&e, 0, sizeof(e));
+    e.type = EV_BOSS_FIGHT; strcpy(e.name, "JimBringerPhase3"); e.t = g_st.last_t + 1;
+    stats_on_event(&g_st, &e);
+    CHECK(g_st.in_fight && g_st.cur_fight.phase_no == 3, "三阶段被识别为续战");
+
+    /* 上一形态的击杀行迟到：不能把三阶段结束掉 */
+    memset(&e, 0, sizeof(e));
+    e.type = EV_BOSS_DEAD; strcpy(e.name, "JimBringerPhase2"); e.t = g_st.last_t + 2;
+    CHECK(!stats_on_event(&g_st, &e), "上一形态的迟到击杀行被忽略");
+    CHECK(g_st.in_fight, "三阶段仍在进行中（未被误判为结束）");
+    CHECK(!strcmp(g_st.cur_fight.name, "JimBringerPhase3"), "当前场次仍是 JimBringerPhase3");
+    stats_view(&g_st, g_st.last_t, 10, &v);
+    CHECK(v.boss && v.boss[0], "三阶段仍显示为 Boss 战");
+
+    /* 三阶段自己的击杀行：正常结算 */
+    memset(&e, 0, sizeof(e));
+    e.type = EV_BOSS_DEAD; strcpy(e.name, "JimBringerPhase3"); e.t = g_st.last_t + 3;
+    CHECK(stats_on_event(&g_st, &e), "三阶段击杀行被采纳");
+    CHECK(!g_st.in_fight, "三阶段正常结束");
+    CHECK(g_st.cur_run.n_fights == 2, "一阶段与三阶段各留一条场次记录");
+    CHECK(g_st.cur_run.fights[1].killed == 1, "三阶段记为击杀");
+    CHECK(g_st.cur_run.fights[1].phase_no == 3, "三阶段形态号 = 3");
+
+    /* 续战后优先显示新形态自己的目标，而不是旧形态的残留 */
+    stats_init(&g_st);
+    memset(&e, 0, sizeof(e));
+    e.type = EV_ROOM_ENTER; strcpy(e.name, "Ecliptica"); e.t = 1;
+    stats_on_event(&g_st, &e);
+    e.type = EV_BOSS_FIGHT; strcpy(e.name, "JimBringer"); e.t = 2;
+    stats_on_event(&g_st, &e);
+    e.type = EV_OWNERSHIP; strcpy(e.name, "JimBringer"); strcpy(e.cls, "OldTarget"); e.t = 3;
+    stats_on_event(&g_st, &e);
+    e.type = EV_BOSS_FIGHT; strcpy(e.name, "JimBringerPhase3"); e.t = 4;
+    stats_on_event(&g_st, &e);
+    e.type = EV_OWNERSHIP; strcpy(e.name, "JimBringerPhase3"); strcpy(e.cls, "NewTarget"); e.t = 5;
+    stats_on_event(&g_st, &e);
+    stats_view(&g_st, 5, 10, &v);
+    CHECK(v.target && !strcmp(v.target, "NewTarget"), "续战后显示新形态自己的目标");
+}
+
+/* ---------------- 统计：Boss 战期间不拿别的敌人的目标冒充 ----------------
+ *
+ * 复刻 output_log_2026-09-25_07-19-06.txt：FlyLord 07:49:36 开战，
+ * 直到 07:50:33 才吐出第一条自己的 ownership（实测其它 Boss 只需 0–20 秒）。
+ * 这 57 秒里如果回落到"最近一次目标切换"，就会显示上一阶段的 Fly/LavaSac，
+ * 看上去就是"FlyLord 的最初仇恨目标识别不出来"。 */
+static void test_boss_target_not_faked(void)
+{
+    static const char* script[] = {
+        "2026.09.25 07:19:14 Debug      -  [Behaviour] Entering Room: Ecliptica - Demo Playtest",
+        "2026.09.25 07:45:22 Debug      -  ECLIPTICA - now in stage: Stage_BalboaRuins on phase: 0.1903192 as class: Thaumaturge",
+        "2026.09.25 07:48:02 Debug      -  ownership of Fly transferred to Name9",
+        "2026.09.25 07:49:36 Debug      -  ECLIPTICA - now fighting boss: FlyLord(Clone) on phase: 0.1903192",
+    };
+    const int N = (int)(sizeof(script) / sizeof(script[0]));
+    StatsView v;
+    Event e;
+
+    stats_init(&g_st);
+    feed_all(script, N);
+    stats_view(&g_st, g_st.last_t, 10, &v);
+    CHECK(v.in_fight, "处于 FlyLord 战斗中");
+    CHECK(v.target && !v.target[0], "Boss 尚无归属时不拿别的敌人（Fly）冒充");
+    CHECK(!v.target_is_boss, "也不会谎称那是 Boss 目标");
+
+    /* Boss 自己的归属一到达就立刻显示 */
+    memset(&e, 0, sizeof(e));
+    e.type = EV_OWNERSHIP; strcpy(e.name, "FlyLord"); strcpy(e.cls, "Name9");
+    e.t = g_st.last_t + 1;
+    stats_on_event(&g_st, &e);
+    stats_view(&g_st, g_st.last_t, 10, &v);
+    CHECK(v.target && !strcmp(v.target, "Name9"), "Boss 自己的归属到达后立即显示");
+    CHECK(v.target_is_boss, "识别为 Boss 目标");
+
+    /* 战斗结束后回落到最近一次切换（带对象名），行为不变 */
+    memset(&e, 0, sizeof(e));
+    e.type = EV_BOSS_DEAD; strcpy(e.name, "FlyLord"); e.t = g_st.last_t + 2;
+    stats_on_event(&g_st, &e);
+    stats_view(&g_st, g_st.last_t, 10, &v);
+    CHECK(!v.in_fight, "战斗已结束");
+    CHECK(v.target && !strcmp(v.target, "Name9"), "战斗结束后仍汇报最近一次切换");
+}
+
+/* ---------------- 统计：间歇期木桩伤害不计入 ----------------
+ *
+ * 复刻 output_log_2026-09-25_07-19-06.txt 第 1842-1865 行：
+ * 07:30:07 进间歇期，之后刷屏式 "Dealing 30 ..."（练习木桩，固定 30 点）。 */
+
+static void test_intermission_dummy(void)
+{
+    static const char* script[] = {
+        "2026.09.25 07:19:14 Debug      -  [Behaviour] Entering Room: Ecliptica - Demo Playtest",
+        "2026.09.25 07:31:58 Debug      -  ECLIPTICA - now in stage: Stage_GMFuncFlat on phase: 0.06092935 as class: Thaumaturge",
+        "2026.09.25 07:32:00 Debug      -  Dealing 100 STRIKE damage",
+        "2026.09.25 07:34:42 Debug      -  ECLIPTICA - now fighting boss: Nan(Clone) on phase: 0.06092935",
+        "2026.09.25 07:35:00 Debug      -  Dealing 200 STRIKE damage",
+        "2026.09.25 07:36:08 Debug      -  Boss Nan dead, personal damage dealt: ",
+        "2026.09.25 07:36:18 Debug      -  ECLIPTICA - now in intermission",
+        "2026.09.25 07:36:34 Debug      -  Dealing 30 STRIKE damage",
+        "2026.09.25 07:36:35 Debug      -  Dealing 30 STRIKE damage",
+        "2026.09.25 07:36:36 Debug      -  Dealing 30 NON-STRIKE damage",
+        "2026.09.25 07:36:37 Debug      -  Dealing 30 STRIKE damage",
+        "2026.09.25 07:36:38 Debug      -  Dealing 30 STRIKE damage",
+    };
+    const int N = (int)(sizeof(script) / sizeof(script[0]));
+
+    stats_init(&g_st);
+    feed_all(script, N);
+    CHECK(g_st.intermission, "处于间歇期");
+    CHECK(fabs(g_st.run_u.a.dmg - 300) < 0.01, "本局伤害只算战斗部分 = 100+200");
+    CHECK(fabs(g_st.stage_u.a.dmg - 100) < 0.01, "本阶段伤害 = 100");
+    CHECK(g_st.cur_run.n_fights == 1, "有一场 Boss 战记录");
+    CHECK(fabs(g_st.cur_run.fights[0].a.dmg - 200) < 0.01, "本场伤害 = 200");
+}
+
+/* ---------------- 统计：团灭后数据重置 ---------------- */
+
+static void test_wipe(void)
+{
+    Event e;
+
+    /* 判据一：Boss 还没死就进了间歇期 */
+    stats_init(&g_st);
+    memset(&e, 0, sizeof(e));
+    e.type = EV_ROOM_ENTER; strcpy(e.name, "Ecliptica"); e.t = 1;
+    stats_on_event(&g_st, &e);
+    e.type = EV_STAGE; strcpy(e.name, "Stage_GMFuncFlat"); e.t = 2;
+    stats_on_event(&g_st, &e);
+    e.type = EV_DEALT; e.amount = 500; e.t = 3;
+    stats_on_event(&g_st, &e);
+    e.type = EV_BOSS_FIGHT; strcpy(e.name, "Corus"); e.t = 4;
+    stats_on_event(&g_st, &e);
+    e.type = EV_DEALT; e.amount = 700; e.t = 5;
+    stats_on_event(&g_st, &e);
+    CHECK(fabs(g_st.run_u.a.dmg - 1200) < 0.01, "团灭前本局伤害 = 1200");
+
+    e.type = EV_INTERMISSION; e.t = 6;      /* Boss 没死 -> 团灭 */
+    stats_on_event(&g_st, &e);
+    CHECK(g_st.in_run, "团灭后已自动重开一局");
+    CHECK(fabs(g_st.run_u.a.dmg) < 0.01, "团灭后本局伤害归零");
+    CHECK(g_st.stage_no == 0, "团灭后阶段号归零");
+    CHECK(g_st.n_runs == 1, "团灭的那一局已记入历史");
+    CHECK(!strcmp(g_st.runs[0].result, "LOST"), "历史里标为失败");
+    CHECK(fabs(g_st.runs[0].a.dmg - 1200) < 0.01, "历史里保留了团灭前的伤害");
+    CHECK(g_st.intermission, "团灭后仍处于间歇期");
+
+    /* 判据二：已打过阶段后又回到初始大厅 */
+    stats_init(&g_st);
+    memset(&e, 0, sizeof(e));
+    e.type = EV_ROOM_ENTER; strcpy(e.name, "Ecliptica"); e.t = 1;
+    stats_on_event(&g_st, &e);
+    e.type = EV_STAGE; strcpy(e.name, "Stage_GMBigcity"); e.t = 2;
+    stats_on_event(&g_st, &e);
+    e.type = EV_STAGE; strcpy(e.name, "Stage_Bringer"); e.t = 3;
+    stats_on_event(&g_st, &e);
+    e.type = EV_DEALT; e.amount = 999; e.t = 4;
+    stats_on_event(&g_st, &e);
+    CHECK(g_st.stage_no == 2, "已打到第 2 个阶段");
+
+    e.type = EV_STAGE; strcpy(e.name, "Stage_Hall of Beginnings"); e.t = 5;
+    stats_on_event(&g_st, &e);
+    CHECK(g_st.n_runs == 1, "团灭的这一局已收尾");
+    CHECK(!strcmp(g_st.runs[0].result, "LOST"), "历史里标为失败");
+    CHECK(fabs(g_st.run_u.a.dmg) < 0.01, "回到初始大厅后本局伤害归零");
+    CHECK(g_st.stage_no == 1, "初始大厅成为新一局的第 1 阶段");
+    CHECK(!strcmp(g_st.stage, "Stage_Hall of Beginnings"), "当前阶段 = 初始大厅");
+
+    /* 正常开局就是从初始大厅开始，不能误判成团灭 */
+    stats_init(&g_st);
+    memset(&e, 0, sizeof(e));
+    e.type = EV_ROOM_ENTER; strcpy(e.name, "Ecliptica"); e.t = 1;
+    stats_on_event(&g_st, &e);
+    e.type = EV_STAGE; strcpy(e.name, "Stage_Hall of Beginnings"); e.t = 2;
+    stats_on_event(&g_st, &e);
+    stats_on_event(&g_st, &e);              /* 重复上报同一阶段 */
+    CHECK(g_st.n_runs == 0, "开局直接进初始大厅不触发重置");
+    CHECK(g_st.stage_no == 1, "阶段号 = 1");
+
+    /* 普通换阶段不能触发重置 */
+    e.type = EV_STAGE; strcpy(e.name, "Stage_GMFuncFlat"); e.t = 3;
+    stats_on_event(&g_st, &e);
+    CHECK(g_st.n_runs == 0, "普通换阶段不重置");
+    CHECK(g_st.stage_no == 2, "阶段号 = 2");
+}
+
+/* ---------------- 统计：伤害来源的"单次伤害 x 次数" ----------------
+ *
+ * 界面按 `单次伤害 x 命中次数` 展示，所以 Tally 里必须同时留住
+ * total 和 hits。跨阶段/跨场次汇总时如果只传 total，次数会退化成
+ * "条目数"，单次伤害就会被算大。
+ * 这里用 3 次 + 2 次、每次 10 点来验证汇总后是 5 次 / 单次 10。 */
+static void test_tally_per_hit(void)
+{
+    static const char* script[] = {
+        "2026.09.25 07:31:58 Debug      -  [Behaviour] Entering Room: Ecliptica - Demo Playtest",
+        "2026.09.25 07:32:00 Debug      -  ECLIPTICA - now in stage: Stage_GMFuncFlat on phase: 0.06 as class: Thaumaturge",
+        "2026.09.25 07:32:01 Debug      -  damage has been taken: 10, from source: (Khepri) attack_Claws2",
+        "2026.09.25 07:32:02 Debug      -  damage has been taken: 10, from source: (Khepri) attack_Claws2",
+        "2026.09.25 07:32:03 Debug      -  damage has been taken: 10, from source: (Khepri) attack_Claws2",
+        "2026.09.25 07:34:46 Debug      -  ECLIPTICA - now fighting boss: Nan(Clone) on phase: 0.06",
+        "2026.09.25 07:36:08 Debug      -  Boss Nan dead, personal damage dealt: ",
+        "2026.09.25 07:36:18 Debug      -  ECLIPTICA - now in intermission",
+        "2026.09.25 07:37:45 Debug      -  ECLIPTICA - now in stage: Stage_ProtoColony on phase: 0.12 as class: Thaumaturge",
+        "2026.09.25 07:37:46 Debug      -  damage has been taken: 10, from source: (Khepri) attack_Claws2",
+        "2026.09.25 07:37:47 Debug      -  damage has been taken: 10, from source: (Khepri) attack_Claws2",
+        /* 再进一次间歇期，退出"阶段中"状态，视图才会切到本局汇总 */
+        "2026.09.25 07:40:00 Debug      -  ECLIPTICA - now in intermission",
+    };
+    const int N = (int)(sizeof(script) / sizeof(script[0]));
+    StatsView v;
+
+    stats_init(&g_st);
+    feed_all(script, N);
+    CHECK(g_st.cur_run.n_stages == 2, "两个阶段都留下了伤害来源");
+    CHECK(!g_st.in_stage && !g_st.in_fight, "已退出阶段，视图会切到本局汇总");
+
+    stats_view(&g_st, g_st.last_t, 10, &v);
+    CHECK(v.attacks_scope == 2, "当前按本局汇总伤害来源");
+
+    int found = 0;
+    for (int i = 0; i < v.n_attacks; i++) {
+        const Tally* t = &v.attacks[i];
+        if (strcmp(t->who, "Khepri") || strcmp(t->attack, "Claws 2")) continue;
+        found = 1;
+        CHECK(fabs(t->total - 50) < 0.01, "汇总总伤害 = 5 x 10 = 50");
+        CHECK(t->hits == 5, "汇总命中次数 = 3 + 2 = 5（不是条目数 2）");
+        CHECK(fabs(t->total / t->hits - 10) < 0.01, "单次伤害 = 10");
+    }
+    CHECK(found, "汇总表里能找到 Khepri · Claws 2");
+
+    /* 阶段内单条累加同样要保持正确 */
+    stats_init(&g_st);
+    feed_all(script, 5);                    /* 只喂到第一次阶段的前 3 次受伤 */
+    stats_view(&g_st, g_st.last_t, 10, &v);
+    CHECK(v.attacks_scope == 1, "阶段内按本阶段统计");
+    CHECK(v.n_attacks == 1, "阶段来源只有 1 条");
+    CHECK(v.attacks[0].hits == 3, "阶段内命中 3 次");
+    CHECK(fabs(v.attacks[0].total / v.attacks[0].hits - 10) < 0.01, "阶段内单次伤害 = 10");
+}
+
+/* ---------------- 统计：DPS 窗口 ---------------- */
+
+static void test_dps_window(void)
+{
+    Event e;
+    stats_init(&g_st);
+    memset(&e, 0, sizeof(e));
+    e.type = EV_ROOM_ENTER;
+    strcpy(e.name, "Ecliptica - Demo Playtest");
+    e.t = 1000;
+    stats_on_event(&g_st, &e);
+    e.type = EV_STAGE;
+    strcpy(e.name, "ProtoColony");
+    e.t = 1001;
+    stats_on_event(&g_st, &e);
+
+    for (int i = 0; i < 10; i++) {
+        e.type = EV_DEALT;
+        e.amount = 100;
+        e.t = 1002 + i;                 /* 1002..1011 */
+        stats_on_event(&g_st, &e);
+    }
+    StatsView v;
+    stats_view(&g_st, 1012, 10, &v);
+    double dps10 = v.stage_dps;
+    stats_view(&g_st, 1012, 3, &v);
+    double dps3 = v.stage_dps;
+
+    CHECK(fabs(dps10 - 100.0) < 0.5, "10 秒窗口 DPS = 1000/10 = 100");
+    CHECK(fabs(dps3 - 100.0) < 0.5, "3 秒窗口 DPS = 300/3 = 100");
+}
+
+/* ---------------- 统计：阶段切换 ---------------- */
+
+static void test_stage_switch(void)
+{
+    Event e;
+    stats_init(&g_st);
+    memset(&e, 0, sizeof(e));
+    e.type = EV_ROOM_ENTER; strcpy(e.name, "Ecliptica"); e.t = 10;
+    stats_on_event(&g_st, &e);
+    e.type = EV_STAGE; strcpy(e.name, "ProtoColony"); e.t = 11;
+    stats_on_event(&g_st, &e);
+    e.type = EV_DEALT; e.amount = 100; e.t = 12;
+    stats_on_event(&g_st, &e);
+    e.type = EV_STAGE; strcpy(e.name, "LostElysia"); e.t = 20;
+    stats_on_event(&g_st, &e);
+    e.type = EV_DEALT; e.amount = 300; e.t = 21;
+    stats_on_event(&g_st, &e);
+
+    CHECK(g_st.stage_no == 2, "阶段切换后 stage_no = 2");
+    CHECK(!strcmp(g_st.stage_disp, "Lost Elysia"), "阶段显示名映射");
+    CHECK(fabs(g_st.stage_u.a.dmg - 300) < 0.01, "新阶段只统计本阶段伤害");
+    CHECK(fabs(g_st.run_u.a.dmg - 400) < 0.01, "本局累计伤害 = 400");
+    CHECK(g_st.cur_run.n_stages == 1, "旧阶段已归档");
+    CHECK(fabs(g_st.cur_run.stages[0].a.dmg - 100) < 0.01, "归档阶段伤害 = 100");
+}
+
+/* ---------------- 统计：Boss 续战 ---------------- */
+
+static void test_boss_phase_continuation(void)
+{
+    Event e;
+    stats_init(&g_st);
+    memset(&e, 0, sizeof(e));
+    e.type = EV_ROOM_ENTER; strcpy(e.name, "Ecliptica"); e.t = 1;
+    stats_on_event(&g_st, &e);
+    e.type = EV_BOSS_FIGHT; strcpy(e.name, "Yuki"); e.t = 2;
+    stats_on_event(&g_st, &e);
+    e.type = EV_DEALT; e.amount = 100; e.t = 3;
+    stats_on_event(&g_st, &e);
+    e.type = EV_BOSS_FIGHT; strcpy(e.name, "YukiPhase2"); e.t = 4;
+    stats_on_event(&g_st, &e);
+    e.type = EV_DEALT; e.amount = 500; e.t = 5;
+    stats_on_event(&g_st, &e);
+    e.type = EV_BOSS_DEAD; strcpy(e.name, "YukiPhase2"); e.t = 6;
+    stats_on_event(&g_st, &e);
+
+    CHECK(g_st.cur_run.n_fights == 1, "同一 Boss 的下一形态合并为一场");
+    CHECK(fabs(g_st.cur_run.fights[0].a.dmg - 600) < 0.01, "续战伤害累计 = 600");
+    CHECK(g_st.cur_run.fights[0].phase_no == 2, "续战阶段号更新为 2");
+    CHECK(!strcmp(g_st.cur_run.fights[0].disp, "Yuki"), "续战显示名不含形态后缀");
+    CHECK(g_st.cur_run.kills == 1, "续战击杀计数 = 1");
+
+    e.type = EV_BOSS_FIGHT; strcpy(e.name, "YukiPhase2"); e.t = 7;
+    stats_on_event(&g_st, &e);
+    CHECK(g_st.cur_run.n_fights == 1, "重复 Boss 行不新增场次");
+}
+
+/* ---------------- 统计：跨世界 ---------------- */
+
+static void test_other_world_leaves(void)
+{
+    Event e;
+    stats_init(&g_st);
+    memset(&e, 0, sizeof(e));
+    e.type = EV_ROOM_ENTER; strcpy(e.name, "Ecliptica - Demo Playtest"); e.t = 1;
+    stats_on_event(&g_st, &e);
+    e.type = EV_DEALT; e.amount = 50; e.t = 2;
+    stats_on_event(&g_st, &e);
+    e.type = EV_ROOM_ENTER; strcpy(e.name, "Yuki Room"); e.t = 3;
+    stats_on_event(&g_st, &e);
+
+    CHECK(!g_st.in_run && !g_st.in_world, "进入别的世界会结束本局");
+    CHECK(g_st.n_runs == 1 && fabs(g_st.runs[0].a.dmg - 50) < 0.01, "本局已归档且伤害正确");
+    CHECK(!strcmp(g_st.world, "Yuki Room"), "世界名已更新");
+}
+
+/* ---------------- 事件日志 ---------------- */
+
+static void test_evlog(void)
+{
+    EvLog ev;
+    evlog_init(&ev);
+    for (int i = 0; i < 5; i++) evlog_push(&ev, i, i == 2 ? EVK_DAMAGE : EVK_OTHER, "line%d", i);
+    CHECK(evlog_count(&ev) == 5, "事件日志计数");
+    CHECK(!strcmp(evlog_at(&ev, 0)->text, "line4"), "evlog_at(0) 为最新");
+    CHECK(!strcmp(evlog_at(&ev, 4)->text, "line0"), "evlog_at(4) 为最旧");
+    CHECK(evlog_at(&ev, 5) == NULL, "越界返回 NULL");
+    CHECK(evlog_visible(&ev, EVFILT_ALL) == 5, "过滤器 全部 = 5");
+    CHECK(evlog_visible(&ev, EVFILT_DAMAGE) == 1, "过滤器 承伤 = 1");
+    CHECK(evlog_visible(&ev, EVFILT_TARGET) == 0, "过滤器 目标 = 0");
+
+    for (int i = 0; i < EVLOG_MAX + 3; i++) evlog_push(&ev, i, EVK_OTHER, "x%d", i);
+    CHECK(evlog_count(&ev) == EVLOG_MAX, "环形缓冲封顶");
+    CHECK(!strcmp(evlog_at(&ev, 0)->text, "x514"), "环形覆盖后最新条目正确");
+    CHECK(!strcmp(evlog_at(&ev, EVLOG_MAX - 1)->text, "x3"), "环形覆盖后最旧条目正确");
+}
+
+/* ---------------- 命令行回放摘要（实测调参用） ---------------- */
+
+static Stats g_rp;
+static EvLog g_rpev;
+
+static void replay_summary(const char* path)
+{
+    FILE* f = fopen(path, "rb");
+    if (!f) { printf("cannot open %s\n", path); return; }
+    stats_init(&g_rp);
+    evlog_init(&g_rpev);
+    char line[2048];
+    long n = 0, evs = 0, kept = 0, own_all = 0, own_kept = 0;
+    while (fgets(line, sizeof(line), f)) {
+        size_t l = strlen(line);
+        while (l > 0 && (line[l - 1] == '\n' || line[l - 1] == '\r')) line[--l] = 0;
+        n++;
+        Event e;
+        if (!parse_line(line, &e)) continue;
+        evs++;
+        if (e.type == EV_OWNERSHIP) own_all++;
+        if (stats_on_event(&g_rp, &e)) {
+            kept++;
+            if (e.type == EV_OWNERSHIP) own_kept++;
+            /* 和 HUD 完全一致：所有被采纳的事件都进事件日志 */
+            evtext_push(&g_rpev, &g_rp, &e);
+        }
+    }
+    fclose(f);
+    printf("lines=%ld  events=%ld  accepted=%ld\n", n, evs, kept);
+    printf("ownership: parse %ld -> keep %ld (per-object, target really changed)\n",
+           own_all, own_kept);
+    {
+        int in_log_all = 0;
+        for (int i = 0; i < evlog_count(&g_rpev); i++) {
+            const EvEntry* en = evlog_at(&g_rpev, i);
+            if (en && evlog_filter_match(en->kind, EVFILT_ALL)) in_log_all++;
+        }
+        printf("event log: %d 条, 全部过滤器可见 %d 条 (容量 %d)\n",
+               evlog_count(&g_rpev), in_log_all, EVLOG_MAX);
+    }
+    int tot_kills = 0, tot_targets = 0;
+    for (int i = 0; i < g_rp.n_runs; i++) {
+        tot_kills += g_rp.runs[i].kills;
+        tot_targets += g_rp.runs[i].targets;
+    }
+    printf("runs=%d  in_run=%d  stage_no=%d  targets_total=%d\n",
+           g_rp.n_runs, g_rp.in_run, g_rp.stage_no, g_rp.targets_total);
+    printf("all runs: kills=%d  targets=%d\n", tot_kills, tot_targets);
+    printf("run: dmg=%.0f taken=%.0f hits=%d tokens=%d fights=%d stages=%d\n",
+           g_rp.run_u.a.dmg, g_rp.run_u.a.taken, g_rp.run_u.a.hits,
+           g_rp.run_u.a.tokens,
+           g_rp.cur_run.n_fights, g_rp.cur_run.n_stages);
+}
+
+int main(int argc, char** argv)
+{
+    if (argc > 1) { replay_summary(argv[1]); return 0; }
+
+    printf("=== 解析器 ===\n");              test_parser();
+    printf("\n=== 名称/来源 ===\n");         test_names();
+    printf("\n=== 过长玩家名 ===\n");        test_long_names();
+    printf("\n=== 世界识别 ===\n");          test_world_aliases();
+    printf("\n=== 格式化 ===\n");            test_format();
+    printf("\n=== 统计：完整一局 ===\n");     test_stats_run();
+    printf("\n=== 统计：异名世界 ===\n");     test_alt_world();
+    printf("\n=== 统计：目标追踪 ===\n");     test_target_tracking();
+    printf("\n=== 统计：最高 DPS ===\n");     test_peak_dps();
+    printf("\n=== 统计：Jim 多阶段 ===\n");   test_jim_phases();
+    printf("\n=== 统计：Boss 初始目标 ===\n"); test_boss_target_not_faked();
+    printf("\n=== 统计：间歇期木桩 ===\n");   test_intermission_dummy();
+    printf("\n=== 统计：团灭重置 ===\n");     test_wipe();
+    printf("\n=== 统计：来源单次伤害 ===\n"); test_tally_per_hit();
+    printf("\n=== 统计：DPS 窗口 ===\n");     test_dps_window();
+    printf("\n=== 统计：阶段切换 ===\n");     test_stage_switch();
+    printf("\n=== 统计：Boss 续战 ===\n");    test_boss_phase_continuation();
+    printf("\n=== 统计：跨世界 ===\n");       test_other_world_leaves();
+    printf("\n=== 事件日志 ===\n");           test_evlog();
+
+    printf("\n%s：%d 项检查，%d 项失败\n", fails ? "失败" : "全部通过", checks, fails);
+    return fails ? 1 : 0;
+}

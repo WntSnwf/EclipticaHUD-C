@@ -1,0 +1,972 @@
+/* test_dlc.c - DLC 逻辑测试：数据表解析 + Boss 名称映射 + 形态查询
+ *
+ *   test_dlc.exe                     跑全部检查（默认读 ./Weakness&Resistance.txt）
+ *   test_dlc.exe <表文件>            指定数据文件
+ *   test_dlc.exe --log <日志文件>    不跑测试，只打印从日志里认出的当前 Boss
+ *                                    （用来在没有窗口的环境下验证 logtail 的识别）
+ */
+#include "res.h"
+#include "logtail.h"
+#include "tablepath.h"
+#include "uitext.h"
+#include <math.h>
+#include <stdio.h>
+#include <string.h>
+
+static int checks = 0, fails = 0;
+
+#define CHECK(cond, msg) do {                                   \
+    checks++;                                                   \
+    if (cond) printf("ok  : %s\n", msg);                        \
+    else { fails++; printf("FAIL: %s\n", msg); }                \
+} while (0)
+
+static ResTable T;
+
+static void test_parse(void)
+{
+    printf("\n=== 解析 ===\n");
+    CHECK(T.n >= 30, "至少解析出 30 个 Boss 段落");
+    CHECK(T.bad_lines == 0, "没有无法识别的行");
+
+    /* 普通数值段 */
+    const BossRes* b = res_find(&T, "FlyLord", 1);
+    CHECK(b != NULL, "FlyLord -> 找到 Beelzebub 段");
+    if (b) {
+        CHECK(!strcmp(b->name, "Beelzebub"), "段名 = Beelzebub");
+        CHECK(b->v[ELEM_FIRE].kind == VAL_NUM &&
+              fabs(b->v[ELEM_FIRE].mult - 1.25) < 1e-9, "Fire = 1.25x");
+        CHECK(b->v[ELEM_LUMINOUS].kind == VAL_NUM &&
+              fabs(b->v[ELEM_LUMINOUS].mult - 0.5) < 1e-9, "Luminous = 0.5x");
+        CHECK(b->v[ELEM_SHADOW].kind == VAL_NUM &&
+              fabs(b->v[ELEM_SHADOW].mult - 1.5) < 1e-9, "Shadow = 1.5x");
+        CHECK(res_verdict(b->v[ELEM_FIRE].mult) == 1, "1.25x 判为「弱」");
+        CHECK(res_verdict(b->v[ELEM_LUMINOUS].mult) == -1, "0.5x 判为「抗」");
+        CHECK(res_verdict(b->v[ELEM_PHYSICAL].mult) == 0, "1x 判为中性");
+    }
+
+    /* Others 行 */
+    const BossRes* j3 = res_find(&T, "JimBringer", 3);
+    CHECK(j3 != NULL, "JimBringer 形态 3 -> 找到 Jim C. Bringer(P3)");
+    if (j3) {
+        CHECK(!strcmp(j3->name, "Jim C. Bringer(P3)"), "段名 = Jim C. Bringer(P3)");
+        CHECK(j3->has_others && fabs(j3->others - 0.75) < 1e-9, "Others = 0.75x");
+        CHECK(j3->v[ELEM_PHYSICAL].kind == VAL_NUM &&
+              fabs(j3->v[ELEM_PHYSICAL].mult - 1.0) < 1e-9, "Physical = 1x");
+        CHECK(j3->v[ELEM_FIRE].kind == VAL_NONE, "Fire 未单列（走 Others）");
+    }
+
+    /* 只有说明文字的段：这里只查结构（几行、有没有被拼接、有没有被截断），
+     * 具体文字属于数据文件内容，会随维护而变，放到 test_notes() 里
+     * 用临时文件按已知内容验证。 */
+
+    /* Jim(P1) 在某一版数据表里是纯说明，后来改成了全 1x 的数值表 ——
+     * 两种都算合法，这里只要求"能查到且有内容"，不钉死形式。*/
+    const BossRes* j1 = res_find(&T, "JimBringer", 1);
+    CHECK(j1 != NULL, "JimBringer 形态 1 -> 能查到");
+    if (j1) {
+        bool has_any = j1->has_others;
+        for (int i = 0; i < ELEM_COUNT; i++)
+            if (j1->v[i].kind != VAL_NONE) has_any = true;
+        CHECK(has_any || j1->n_note > 0, "Jim P1 有数值表或说明，不是空条目");
+    }
+
+    /* Jim(P2) 的说明很长（实测日文 388 字节），不能被截断成半截 UTF-8 */
+    const BossRes* j2n = res_find(&T, "JimBringer", 2);
+    if (j2n && j2n->n_note > 0) {
+        size_t len = strlen(j2n->note[0]);
+        char msg[128];
+        snprintf(msg, sizeof(msg), "Jim P2 的说明完整保留（%u 字节，未截断）", (unsigned)len);
+        /* 末字节可能是某个多字节字符的后续字节，那很正常；
+         * 真正要保证的是整串合法 —— 能转成 UTF-16 就说明没被切坏。*/
+        wchar_t wbuf[RES_NOTE_LEN];
+        int wn = MultiByteToWideChar(CP_UTF8, 0, j2n->note[0], -1, wbuf, RES_NOTE_LEN);
+        CHECK(len + 1 < RES_NOTE_LEN && wn > 0, msg);
+    }
+
+    const BossRes* nan = res_find(&T, "Nan", 1);
+    CHECK(nan != NULL && nan->is_note, "Nan -> NaN 说明型条目");
+    if (nan) {
+        /* 数据文件里 NaN 是 5 行独立的话，必须逐行保留而不是拼成一段 */
+        CHECK(nan->n_note == 5, "NaN 的说明保留 5 行（不合并成一段）");
+        for (int i = 0; i < nan->n_note; i++) {
+            char msg[96];
+            snprintf(msg, sizeof(msg), "NaN 第 %d 行非空且不含换行/注释残留", i + 1);
+            CHECK(nan->note[i][0] != 0 &&
+                  strchr(nan->note[i], '#') == NULL &&
+                  strchr(nan->note[i], '\n') == NULL, msg);
+        }
+        /* 每一行各自独立：任意两行之间不互为子串 */
+        bool joined = false;
+        for (int i = 0; i < nan->n_note; i++)
+            for (int k = 0; k < nan->n_note; k++)
+                if (i != k && strstr(nan->note[i], nan->note[k])) joined = true;
+        CHECK(!joined, "各行之间没有被拼接");
+    }
+
+    /* 符号写法 */
+    const BossRes* y2 = res_find(&T, "Yuki", 2);
+    CHECK(y2 != NULL && y2->is_note == false, "Yuki 形态 2 -> 有数值表");
+    if (y2) {
+        CHECK(!strcmp(y2->name, "Yuki(P2)"), "段名 = Yuki(P2)");
+        CHECK(y2->v[ELEM_FIRE].kind == VAL_WEAK, "Fire = 1+x (weak)");
+        CHECK(y2->v[ELEM_FROST].kind == VAL_RESIST, "Frost = 1-x (resist)");
+        CHECK(y2->v[ELEM_PHYSICAL].kind == VAL_NUM &&
+              fabs(y2->v[ELEM_PHYSICAL].mult - 1.0) < 1e-9, "Physical = 1x（同段混合）");
+    }
+}
+
+static void test_lookup(void)
+{
+    printf("\n=== 查询与映射 ===\n");
+
+    /* 本体程序里 internal -> display 的映射必须能对上数据文件里的名字 */
+    CHECK(!strcmp(res_boss_display("FlyLord"), "Beelzebub"), "FlyLord -> Beelzebub");
+    CHECK(!strcmp(res_boss_display("AntKing"), "Khepri"), "AntKing -> Khepri");
+    CHECK(!strcmp(res_boss_display("ManalyteAncient"), "Abaddon"), "ManalyteAncient -> Abaddon");
+    CHECK(!strcmp(res_boss_display("JackedPumpkin"), "Jacked O' Lantern"), "JackedPumpkin 映射");
+    CHECK(!strcmp(res_boss_display("M41D"), "M-41-D"), "M41D -> M-41-D");
+    CHECK(!strcmp(res_boss_display("DarkMouth"), "Darkmouth"), "DarkMouth -> Darkmouth");
+    CHECK(!strcmp(res_boss_display("Corus"), "Corus"), "表里没写的名字原样返回");
+    /* Ecliptica v0.6 新增的两位 */
+    CHECK(!strcmp(res_boss_display("Hakli"), "Ha'kli"), "Hakli -> Ha'kli（v0.6）");
+    CHECK(!strcmp(res_boss_display("QueenVolt"), "Zaveah"), "QueenVolt -> Zaveah（v0.6）");
+    /* 内部名与显示名相同的两位：没有条目也要原样显示 */
+    CHECK(!strcmp(res_boss_display("Onyx Pilot"), "Onyx Pilot"), "Onyx Pilot 原样显示（v0.6）");
+    CHECK(!strcmp(res_boss_display("Gilgamesh"), "Gilgamesh"), "Gilgamesh 原样显示（v0.6）");
+    /* v0.6 删掉的 Boss 不该再留在映射表里 */
+    CHECK(!strcmp(res_boss_display("Obisidus"), "Obisidus"), "Obisidus 的映射已随 v0.6 移除");
+    CHECK(!strcmp(res_boss_display("Melon"), "Melon"), "Melon 的映射已随 v0.6 移除");
+
+    /* 映射之后确实都能查到 */
+    static const char* pairs[][2] = {
+        { "FlyLord", "Beelzebub" }, { "AntKing", "Khepri" },
+        { "ManalyteAncient", "Abaddon" }, { "JackedPumpkin", "Jacked O' Lantern" },
+        { "M41D", "M-41-D" }, { "QueenBug", "Vesra" }, { "BuffNoob", "Buff Noob" },
+        { "BlackLily", "The Black Lily" },
+        { "Gravetender", "The Gravetender" }, { "ConeHead", "Cone Head" },
+        { "GoldenGrouch", "Golden Grouch" }, { "Oone", "O-One" }, { "NeoPilot", "Neo Pilot" },
+        { "DarkMouth", "Darkmouth" }, { "Nan", "NaN" },
+    };
+    for (size_t i = 0; i < sizeof(pairs) / sizeof(pairs[0]); i++) {
+        const BossRes* r = res_find(&T, pairs[i][0], 1);
+        char msg[160];
+        snprintf(msg, sizeof(msg), "%s 能查到段（%s）", pairs[i][0], pairs[i][1]);
+        CHECK(r != NULL, msg);
+    }
+
+    /* 数据文件里直接写内部名的那些（没有映射）也要能查到 */
+    static const char* plain[] = {
+        "Maxipuss", "Kakarot", "Pride", "Steven", "Kodama",
+        "Middleman", "Amaziah", "Corus", "Yuki", "Mephiel",
+        "Pandora", "Bravera"
+    };
+    for (size_t i = 0; i < sizeof(plain) / sizeof(plain[0]); i++) {
+        char msg[128];
+        snprintf(msg, sizeof(msg), "%s 能查到段", plain[i]);
+        CHECK(res_find(&T, plain[i], 1) != NULL, msg);
+    }
+}
+
+static void test_names(void)
+{
+    printf("\n=== 名称工具 ===\n");
+    char b[64];
+
+    res_boss_base("Yuki", b, sizeof(b));
+    CHECK(!strcmp(b, "Yuki"), "Yuki 基础名 = Yuki");
+    res_boss_base("YukiPhase2", b, sizeof(b));
+    CHECK(!strcmp(b, "Yuki"), "YukiPhase2 基础名 = Yuki");
+    res_boss_base("YukiPhase2(Clone)", b, sizeof(b));
+    CHECK(!strcmp(b, "Yuki"), "YukiPhase2(Clone) 基础名 = Yuki");
+    res_boss_base("JimBringer(Clone)", b, sizeof(b));
+    CHECK(!strcmp(b, "JimBringer"), "JimBringer(Clone) 基础名 = JimBringer");
+    res_boss_base("M41D", b, sizeof(b));
+    CHECK(!strcmp(b, "M41D"), "M41D 不被误伤");
+    res_boss_base("ManalyteAncientPhase3(Clone)", b, sizeof(b));
+    CHECK(!strcmp(b, "ManalyteAncient"), "ManalyteAncientPhase3 基础名");
+
+    CHECK(res_boss_phase("Yuki") == 1, "无后缀 -> 形态 1");
+    CHECK(res_boss_phase("YukiPhase2") == 2, "YukiPhase2 -> 形态 2");
+    CHECK(res_boss_phase("JimBringerPhase3(Clone)") == 3, "JimBringerPhase3 -> 形态 3");
+
+    /* 缺数据的 Boss 不能崩，返回 NULL 即可 */
+    CHECK(res_find(&T, "NoSuchBoss", 1) == NULL, "未知 Boss 返回 NULL");
+    CHECK(res_find(&T, "", 1) == NULL, "空名字返回 NULL");
+    CHECK(res_find(&T, NULL, 1) == NULL, "NULL 返回 NULL");
+
+    /* JimBringer 形态 2：说明型条目。行数随数据表怎么断句而变（现在是每句一行），
+     * 所以不钉死行数，只要求"有说明且每行都是完整合法的 UTF-8"。*/
+    const BossRes* j2 = res_find(&T, "JimBringer", 2);
+    CHECK(j2 != NULL, "JimBringer 形态 2 -> 能查到（表里已补）");
+    if (j2) {
+        CHECK(!strcmp(j2->name, "Jim C. Bringer(P2)"), "段名 = Jim C. Bringer(P2)");
+        CHECK(j2->is_note, "形态 2 是说明型条目");
+        CHECK(j2->n_note >= 1, "形态 2 有说明文字");
+        bool notes_ok = true;
+        for (int i = 0; i < j2->n_note; i++) {
+            wchar_t w[RES_NOTE_LEN];
+            if (!j2->note[i][0] || strchr(j2->note[i], '#') ||
+                MultiByteToWideChar(CP_UTF8, 0, j2->note[i], -1, w, RES_NOTE_LEN) <= 0)
+                notes_ok = false;
+        }
+        CHECK(notes_ok, "每行说明都非空、无注释残留、且是合法 UTF-8");
+        CHECK(!j2->has_others, "形态 2 没有 Others 行");
+    }
+    /* 三个形态必须各自独立、不串台 */
+    {
+        const BossRes* p1 = res_find(&T, "JimBringer", 1);
+        const BossRes* p3 = res_find(&T, "JimBringer", 3);
+        CHECK(p1 && j2 && p3 && p1 != j2 && j2 != p3 && p1 != p3,
+              "P1 / P2 / P3 是三个不同条目");
+    }
+
+    /* 显示名按语言来自 uitext_*.h：这里验证的是"接上了、七个、互不相同"，
+     * 具体文字属于各语言的文案表，不在这里钉死。 */
+    bool all_named = true, dup = false;
+    for (int i = 0; i < ELEM_COUNT; i++) {
+        const char* n = res_elem_name(i);
+        if (!n || !n[0]) all_named = false;
+        for (int k = i + 1; k < ELEM_COUNT; k++)
+            if (n && res_elem_name(k) && !strcmp(n, res_elem_name(k))) dup = true;
+    }
+    CHECK(all_named, "七个元素都有显示名");
+    CHECK(!dup, "七个显示名互不相同");
+    CHECK(ELEM_COUNT == 7, "共 7 个元素");
+    {
+        /* TXT_ELEM_DISPLAY 是初始化列表，只能这样取出来比 */
+        static const char* const disp[ELEM_COUNT] = TXT_ELEM_DISPLAY;
+        bool same = true;
+        for (int i = 0; i < ELEM_COUNT; i++)
+            if (strcmp(res_elem_name(i), disp[i]) != 0) same = false;
+        CHECK(same, "显示名逐个取自本语言的文案表");
+    }
+
+    /* 数据文件里的键与界面语言无关，三种语言版都认同一套键 */
+    CHECK(!strcmp(res_elem_key(ELEM_PHYSICAL), "Physical"), "数据文件键 Physical");
+    CHECK(!strcmp(res_elem_key(ELEM_FIRE), "Fire"), "数据文件键 Fire");
+    CHECK(!strcmp(res_elem_key(ELEM_POISON), "Poison"), "数据文件键 Poison");
+}
+
+/* --log 模式：只验证 logtail 能不能从真实日志里认出当前 Boss */
+static int probe_log(const char* path)
+{
+    wchar_t wpath[MAX_PATH];
+    /* 控制台传进来的 argv 是 ANSI（中文 Windows 下是 GBK），不是 UTF-8 */
+    MultiByteToWideChar(CP_ACP, 0, path, -1, wpath, MAX_PATH);
+
+    LogTail lt;
+    logtail_open(&lt, wpath);
+    if (!logtail_ready(&lt)) {
+        printf(TXT_P_OPENFAIL "\n", path);
+        logtail_close(&lt);
+        return 2;
+    }
+    logtail_poll(&lt);                       /* 再读一次新增部分 */
+
+    char name[80];
+    logtail_name(&lt, name, sizeof(name));
+    printf("%s %s\n", TXT_P_LOG, name);
+    printf("%s %s\n", TXT_P_FIGHTING, lt.in_fight && lt.boss[0] ? lt.boss : TXT_P_NONE);
+    if (lt.in_fight && lt.boss[0]) {
+        const char* disp = res_boss_display(lt.boss);
+        printf("%s %s\n", TXT_P_DISPLAY, disp);
+        printf("%s %d\n", TXT_P_PHASE, lt.phase);
+        char key[128];
+        snprintf(key, sizeof(key), "%s(P%d)", disp, lt.phase);
+        printf("%s %s  /  %s\n", TXT_P_QUERY, key, disp);
+    }
+
+    /* 顺便验证查表结果 */
+    static ResTable P;
+    if (res_load(&P, "Weakness&Resistance.txt") && lt.in_fight && lt.boss[0]) {
+        const BossRes* r = res_find(&P, lt.boss, lt.phase);
+        if (r) {
+            printf("%s %s\n", TXT_P_ENTRY, r->name);
+            for (int i = 0; i < ELEM_COUNT; i++) {
+                const ElemVal* v = &r->v[i];
+                /* 显示名 + 数据文件里的键；两者相同时（英文版）只打一遍 */
+                char lab[64];
+                const char* dn = res_elem_name(i);
+                const char* ky = res_elem_key(i);
+                if (!strcmp(dn, ky)) snprintf(lab, sizeof(lab), "%s", dn);
+                else                  snprintf(lab, sizeof(lab), "%s %s", dn, ky);
+                const char* verdict = "-";
+                char val[32];
+                snprintf(val, sizeof(val), "—");
+
+                /* 判定：写明 (weak)/(resist) 以它为准，否则看倍率 */
+                int k = 0;
+                if (v->kind == VAL_WEAK)        k = 1;
+                else if (v->kind == VAL_RESIST) k = -1;
+                else if (v->kind == VAL_NUM)    k = res_verdict(v->mult);
+                verdict = k > 0 ? TXT_VAL_WEAK : (k < 0 ? TXT_VAL_RESIST : "-");
+
+                if (v->kind != VAL_NONE && v->has_mult) {
+                    /* 数值 + 判定；带 ±x 的方向要用 </> 标出来
+                     * （0.7-x 是"低于 0.7"，不是"正好 0.7"）*/
+                    snprintf(val, sizeof(val), "%s%.2fx",
+                             v->bound < 0 ? "<" : (v->bound > 0 ? ">" : ""), v->mult);
+                    printf("  %-18s %-7s %s\n", lab, val, verdict);
+                } else if (v->kind == VAL_WEAK || v->kind == VAL_RESIST) {
+                    printf("  %-18s %s%s\n", lab,
+                           v->kind == VAL_WEAK ? TXT_VAL_WEAK : TXT_VAL_RESIST, TXT_P_NOMULT);
+                } else if (r->has_others) {
+                    int ko = res_verdict(r->others);
+                    snprintf(val, sizeof(val), "%.2fx", r->others);
+                    printf("  %-18s %-7s %s   (Others)\n", lab, val,
+                           ko > 0 ? TXT_VAL_WEAK : (ko < 0 ? TXT_VAL_RESIST : "-"));
+                } else {
+                    printf("  %-18s —\n", lab);
+                }
+            }
+            /* 说明是多行保存的，逐行打印 */
+            for (int i = 0; i < r->n_note; i++)
+                printf("%s %s\n", i == 0 ? TXT_P_NOTE : "            ", r->note[i]);
+        } else {
+            printf("%s %s\n", TXT_P_ENTRY, TXT_P_MISSING);
+        }
+    }
+    logtail_close(&lt);
+    return 0;
+}
+
+/* 数据文件里直接用中文键（物/火/冰/电/光/暗/毒）也应该能解析。
+ * 显示名是中文，但解析键两种都认，维护数据表时少一层对照。 */
+static void test_cn_keys(void)
+{
+    printf("\n=== 数据文件用中文键 ===\n");
+    const char* path = "_tmp_cn_table.txt";
+    FILE* f = fopen(path, "wb");
+    if (!f) { CHECK(false, "无法写临时文件"); return; }
+    fprintf(f,
+            "TestBossCN\n"
+            "物: 1x\n"
+            "火: 1.25x\n"
+            "冰: 0.75x\n"
+            "电: 1x\n"
+            "光: 0.5x\n"
+            "暗: 1.5x\n"
+            "毒: 1x\n"
+            "---\n"
+            "TestBossHoly\n"
+            "圣: 0.25x\n"
+            "---\n"
+            /* 日文写法与中文不同的那几个必须也能当键用，
+             * 否则日文用户照着面板上的字写进数据文件会解析不了 */
+            "TestBossJp\n"
+            "氷: 0.75x\n"
+            "電気: 1.25x\n"
+            "闇: 1.5x\n"
+            "光: 0.5x\n"
+            "---\n");
+    fclose(f);
+
+    ResTable C;
+    bool ok = res_load(&C, path);
+    CHECK(ok, "中文键的数据文件能加载");
+    if (ok) {
+        CHECK(C.bad_lines == 0, "中文键没有产生无法识别的行");
+        const BossRes* b = res_find(&C, "TestBossCN", 1);
+        CHECK(b != NULL, "查到 TestBossCN");
+        if (b) {
+            CHECK(fabs(b->v[ELEM_PHYSICAL].mult - 1.00) < 1e-9, "物 = 1x");
+            CHECK(fabs(b->v[ELEM_FIRE].mult - 1.25) < 1e-9, "火 = 1.25x");
+            CHECK(fabs(b->v[ELEM_FROST].mult - 0.75) < 1e-9, "冰 = 0.75x");
+            CHECK(fabs(b->v[ELEM_ELECTRIC].mult - 1.00) < 1e-9, "电 = 1x");
+            CHECK(fabs(b->v[ELEM_LUMINOUS].mult - 0.5) < 1e-9, "光 = 0.5x");
+            CHECK(fabs(b->v[ELEM_SHADOW].mult - 1.5) < 1e-9, "暗 = 1.5x");
+            CHECK(fabs(b->v[ELEM_POISON].mult - 1.00) < 1e-9, "毒 = 1x");
+        }
+        /* 光 / 圣 都指向 Luminous */
+        const BossRes* h = res_find(&C, "TestBossHoly", 1);
+        CHECK(h != NULL && fabs(h->v[ELEM_LUMINOUS].mult - 0.25) < 1e-9, "圣 = Luminous");
+
+        /* 日文写法（与中文不同形的那些）也要能当键 */
+        const BossRes* jp = res_find(&C, "TestBossJp", 1);
+        CHECK(jp != NULL, "日文键的表能查到");
+        if (jp) {
+            CHECK(fabs(jp->v[ELEM_FROST].mult - 0.75) < 1e-9, "氷 = Frost（中文是「冰」）");
+            CHECK(fabs(jp->v[ELEM_ELECTRIC].mult - 1.25) < 1e-9, "電気 = Electric（中文是「电」）");
+            CHECK(fabs(jp->v[ELEM_SHADOW].mult - 1.5) < 1e-9, "闇 = Shadow（中文是「暗」）");
+            CHECK(fabs(jp->v[ELEM_LUMINOUS].mult - 0.5) < 1e-9, "光 = Luminous（中日同形）");
+            CHECK(C.bad_lines == 0, "日文键没有产生无法识别的行");
+        }
+    }
+    remove(path);
+}
+
+/* 说明文字与注释：用临时文件按已知内容验证解析行为，
+ * 不依赖随维护而变的那份数据文件。 */
+static void test_notes(void)
+{
+    printf("\n=== 说明文字 / 注释 ===\n");
+    const char* path = "_tmp_note_table.txt";
+    FILE* f = fopen(path, "wb");
+    if (!f) { CHECK(false, "无法写临时文件"); return; }
+    fprintf(f,
+            "EnNote\n"
+            "The weakness depends on the mode it takes.\n"
+            "Fire mode: weakness is fire\n"
+            "---\n"
+            "CnNote\n"
+            "弱点取决于它当前所处的模式。          # The weakness depends on the mode it takes.\n"
+            "火模式：弱点是火                      # Fire mode: weakness is fire\n"
+            "---\n"
+            "NoSpace\n"
+            "标签#不是注释\n"                     /* # 前面没有空白 -> 不算注释 */
+            "---\n"
+            "OnlyComment\n"
+            "# 整行都是注释\n"
+            "真内容\n"
+            "---\n"
+            "Tagged\n"
+            "zh: 中文说明\n"
+            "en: English note\n"
+            "ja: 日本語の説明\n"
+            "无前缀说明\n"
+            "---\n");
+    fclose(f);
+
+    ResTable C;
+    bool ok = res_load(&C, path);
+    CHECK(ok, "说明测试表能加载");
+    if (ok) {
+        CHECK(C.bad_lines == 0, "没有无法识别的行");
+
+        /* 英文说明：逐行保留 */
+        const BossRes* en = res_find(&C, "EnNote", 1);
+        CHECK(en && en->n_note == 2, "英文说明保留 2 行");
+        if (en && en->n_note == 2) {
+            CHECK(!strcmp(en->note[0], "The weakness depends on the mode it takes."),
+                  "英文第 1 行原样");
+            CHECK(!strcmp(en->note[1], "Fire mode: weakness is fire"),
+                  "英文第 2 行原样");
+        }
+
+        /* 中文说明 + 行尾英文注释 */
+        const BossRes* cn = res_find(&C, "CnNote", 1);
+        CHECK(cn && cn->n_note == 2, "中文说明保留 2 行");
+        if (cn && cn->n_note == 2) {
+            CHECK(!strcmp(cn->note[0], "弱点取决于它当前所处的模式。"),
+                  "中文第 1 行，行尾 # 注释被去掉");
+            CHECK(!strcmp(cn->note[1], "火模式：弱点是火"),
+                  "中文第 2 行，行尾 # 注释被去掉");
+            CHECK(strchr(cn->note[0], '#') == NULL, "注释没有残留");
+        }
+
+        /* # 前面没有空白 -> 是正文的一部分 */
+        const BossRes* ns = res_find(&C, "NoSpace", 1);
+        CHECK(ns && ns->n_note == 1 && !strcmp(ns->note[0], "标签#不是注释"),
+              "紧贴文字的 # 不当注释");
+
+        /* 整行注释被跳过，不留空行 */
+        const BossRes* oc = res_find(&C, "OnlyComment", 1);
+        CHECK(oc && oc->n_note == 1 && !strcmp(oc->note[0], "真内容"),
+              "整行注释被跳过");
+
+        /* 语言前缀：只收本语言的，以及没有前缀的（三种语言都收）*/
+        const BossRes* tg = res_find(&C, "Tagged", 1);
+        CHECK(tg && tg->n_note == 2, "语言前缀：只留本语言 + 无前缀");
+        if (tg && tg->n_note == 2) {
+            const char* want = !strcmp(TXT_LANG_TAG, "zh") ? "中文说明"
+                             : !strcmp(TXT_LANG_TAG, "en") ? "English note"
+                                                           : "日本語の説明";
+            char msg[96];
+            snprintf(msg, sizeof(msg), "本语言(%s)的说明被留下", TXT_LANG_TAG);
+            CHECK(!strcmp(tg->note[0], want), msg);
+            CHECK(!strcmp(tg->note[1], "无前缀说明"), "无前缀的说明谁都收");
+            /* 别的语言的行不能漏进来 */
+            CHECK(strcmp(tg->note[0], "中文说明") != 0 ||
+                  !strcmp(TXT_LANG_TAG, "zh"), "没有混入别语言的说明");
+        }
+    }
+    remove(path);
+}
+
+/* 从 exe 目录拼出的绝对路径必须能被加载。
+ * 这是踩过的坑：MSVCRT 的 fopen 按 ANSI 代码页解释路径，把 UTF-8 路径喂进去，
+ * 只要目录名里有中文就打不开文件 —— 而 exe 目录恰恰可能是这种路径，
+ * 表现就是面板上一直显示"找不到 Weakness&Resistance.txt"。 */
+static void test_absolute_path(void)
+{
+    printf("\n=== 绝对路径（目录名含中文）===\n");
+    wchar_t dir[MAX_PATH], wpath[MAX_PATH];
+    DWORD n = GetModuleFileNameW(NULL, dir, MAX_PATH);
+    CHECK(n > 0 && n < MAX_PATH, "拿得到自身 exe 路径");
+    if (n == 0 || n >= MAX_PATH) return;
+    wchar_t* slash = wcsrchr(dir, L'\\');
+    if (slash) *slash = 0;
+    _snwprintf(wpath, MAX_PATH, L"%s\\Weakness&Resistance.txt", dir);
+
+    static ResTable A;
+    bool ok = res_load_w(&A, wpath);
+    CHECK(ok, "宽字符绝对路径能加载（res_load_w）");
+    if (ok) {
+        CHECK(A.n == T.n, "与相对路径加载出的段落数一致");
+        CHECK(A.bad_lines == 0, "绝对路径加载同样没有无法识别的行");
+        const BossRes* b = res_find(&A, "FlyLord", 1);
+        CHECK(b != NULL && fabs(b->v[ELEM_FIRE].mult - 1.25) < 1e-9,
+              "绝对路径加载的内容正确");
+    }
+
+    /* 顺手证明"窄字符 + UTF-8"这条路确实不通 */
+    char u8[MAX_PATH * 3];
+    WideCharToMultiByte(CP_UTF8, 0, wpath, -1, u8, sizeof(u8), NULL, NULL);
+    bool ascii_only = true;
+    for (const char* p = u8; *p; p++)
+        if ((unsigned char)*p >= 0x80) { ascii_only = false; break; }
+    if (!ascii_only) {
+        static ResTable B;
+        CHECK(!res_load(&B, u8), "UTF-8 窄路径打不开（目录名含非 ASCII）");
+    } else {
+        printf("skip: 当前路径全是 ASCII，窄路径的失败复现不出来\n");
+    }
+}
+
+/* 抗性表的查找顺序。这块最容易悄悄改坏 —— 坏了也只是"面板说找不到表"，
+ * 所以把每种摆放都显式钉一遍。 */
+static void test_table_lookup(void)
+{
+    printf("\n=== 抗性表查找顺序 ===\n");
+
+    wchar_t tmp[MAX_PATH], base[MAX_PATH];
+    if (!GetTempPathW(MAX_PATH, tmp)) { CHECK(false, "拿不到临时目录"); return; }
+    _snwprintf(base, MAX_PATH, L"%shr_dlc_test_%lu", tmp, (unsigned long)GetCurrentProcessId());
+
+    wchar_t exe[MAX_PATH], up[MAX_PATH], cwd[MAX_PATH];
+    _snwprintf(exe, MAX_PATH, L"%s\\exe", base);
+    _snwprintf(up,  MAX_PATH, L"%s", base);
+    _snwprintf(cwd, MAX_PATH, L"%s\\cwd", base);
+    wchar_t sub[MAX_PATH];
+    _snwprintf(sub, MAX_PATH, L"%s\\%s", exe, TABLE_SUBDIR);
+
+    CreateDirectoryW(base, NULL);
+    CreateDirectoryW(exe, NULL);
+    CreateDirectoryW(cwd, NULL);
+    CreateDirectoryW(sub, NULL);
+
+    wchar_t p_exe[MAX_PATH], p_sub[MAX_PATH], p_cwd[MAX_PATH], p_up[MAX_PATH];
+    _snwprintf(p_exe, MAX_PATH, L"%s\\%s", exe, TABLE_FILE_NAME);
+    _snwprintf(p_sub, MAX_PATH, L"%s\\%s", sub, TABLE_FILE_NAME);
+    _snwprintf(p_cwd, MAX_PATH, L"%s\\%s", cwd, TABLE_FILE_NAME);
+    _snwprintf(p_up,  MAX_PATH, L"%s\\%s", up,  TABLE_FILE_NAME);
+
+    TablePath tp;
+    const wchar_t* dummy = L"notepad";
+
+    /* 一个都没有 -> 找不到，并且给出"建议放哪" */
+    table_find(&tp, NULL, exe, cwd);
+    CHECK(tp.path[0] == 0, "哪都没有时 -> 找不到");
+    CHECK(tp.hint[0] != 0 && wcsstr(tp.hint, L"exe") != NULL, "给出建议目录（exe 同目录）");
+
+    /* 2. exe 同目录 */
+    FILE* f = _wfopen(p_exe, L"wb"); fputs("x", f); fclose(f);
+    table_find(&tp, NULL, exe, cwd);
+    CHECK(wcscmp(tp.path, p_exe) == 0, "exe 同目录优先");
+    _wremove(p_exe);
+
+    /* 3. exe 下的 DLC 子目录 */
+    f = _wfopen(p_sub, L"wb"); fputs("x", f); fclose(f);
+    table_find(&tp, NULL, exe, cwd);
+    CHECK(wcscmp(tp.path, p_sub) == 0, "exe\\EclipticaHUD-c-DLC\\ 命中");
+
+    /* 6/7. 当前工作目录 —— 应该排在 exe 相关位置之后
+     * 先放 cwd，确认命中；再放 exe 同目录，确认 exe 优先 */
+    f = _wfopen(p_cwd, L"wb"); fputs("x", f); fclose(f);
+    table_find(&tp, NULL, exe, cwd);
+    CHECK(wcscmp(tp.path, p_sub) == 0, "exe 侧优先于 cwd");
+    _wremove(p_sub);
+    table_find(&tp, NULL, exe, cwd);
+    CHECK(wcscmp(tp.path, p_cwd) == 0, "exe 侧没有时退到 cwd");
+
+    /* 4. 上一级目录 */
+    f = _wfopen(p_up, L"wb"); fputs("x", f); fclose(f);
+    table_find(&tp, NULL, exe, cwd);
+    CHECK(wcscmp(tp.path, p_up) == 0, "上一级目录优先于 cwd");
+    _wremove(p_up);
+    _wremove(p_cwd);
+
+    /* 1. --table 指定：有就只用它 */
+    f = _wfopen(p_cwd, L"wb"); fputs("x", f); fclose(f);
+    table_find(&tp, p_cwd, exe, cwd);
+    CHECK(tp.forced, "--table 标记为 forced");
+    CHECK(wcscmp(tp.path, p_cwd) == 0, "--table 生效");
+    /* 指定了不存在的文件 -> 不回退（免得用户以为生效了）*/
+    wchar_t gone[MAX_PATH];
+    _snwprintf(gone, MAX_PATH, L"%s\\nope.txt", base);
+    table_find(&tp, gone, exe, cwd);
+    CHECK(tp.path[0] == 0, "--table 指向不存在的文件 -> 不回退到别的路径");
+
+    /* 清理 */
+    _wremove(p_cwd);
+    RemoveDirectoryW(sub);
+    RemoveDirectoryW(cwd);
+    RemoveDirectoryW(exe);
+    RemoveDirectoryW(base);
+    (void)dummy;
+}
+
+/* 多形态 Boss 的击杀行会迟到，而且迟到的是**上一个形态**的。
+ *
+ * 实测（2026-10-12 那局）：
+ *   25766  now fighting boss: JimBringerPhase3(Clone) on phase: 1
+ *   25770  Boss JimBringerPhase2 dead, personal damage dealt:   <- 紧接着就来
+ * 只比基础名的话，这一行会把正在进行的 P3 一起清掉，
+ * 表现就是面板在整个 P3 阶段都显示"等待 Boss 战"、抗性一直不出现。 */
+static void test_phase_death(void)
+{
+    printf("\n=== 多形态 Boss：迟到的击杀行 ===\n");
+
+    typedef struct {
+        const char* name;
+        const char* body;
+        bool expect_fight;
+        int  expect_phase;
+    } Case;
+
+    static const Case cases[] = {
+        { "P3 开战后迟到的 P2 击杀行不清场",
+          "ECLIPTICA - now fighting boss: JimBringerPhase2(Clone) on phase: 0\n"
+          "ECLIPTICA - now fighting boss: JimBringerPhase3(Clone) on phase: 1\n"
+          "Boss JimBringerPhase2 dead, personal damage dealt: 100\n",
+          true, 3 },
+        { "P3 自己的击杀行才清场",
+          "ECLIPTICA - now fighting boss: JimBringerPhase3(Clone) on phase: 1\n"
+          "Boss JimBringerPhase3 dead, personal damage dealt: 100\n",
+          false, 1 },
+        { "P1 的击杀行照常清场",
+          "ECLIPTICA - now fighting boss: JimBringer(Clone) on phase: 1\n"
+          "Boss JimBringer dead, personal damage dealt: 100\n",
+          false, 1 },
+        { "单形态 Boss 照常被清",
+          "ECLIPTICA - now fighting boss: Corus(Clone) on phase: 0\n"
+          "Boss Corus dead, personal damage dealt: 100\n",
+          false, 1 },
+        { "P2 进行中不被打扰",
+          "ECLIPTICA - now fighting boss: JimBringerPhase2(Clone) on phase: 0\n",
+          true, 2 },
+        { "P2 的击杀行来得及时，正常清场",
+          "ECLIPTICA - now fighting boss: JimBringerPhase2(Clone) on phase: 0\n"
+          "Boss JimBringerPhase2 dead, personal damage dealt: 100\n",
+          false, 1 },
+    };
+
+    const char* path = "_tmp_phase.log";
+    for (size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); i++) {
+        FILE* f = fopen(path, "wb");
+        if (!f) { CHECK(false, "无法写临时日志"); return; }
+        fputs(cases[i].body, f);
+        fclose(f);
+
+        wchar_t wp[MAX_PATH];
+        MultiByteToWideChar(CP_ACP, 0, path, -1, wp, MAX_PATH);
+
+        LogTail lt;
+        logtail_open(&lt, wp);
+        char msg[200];
+        snprintf(msg, sizeof(msg), "%s -> 仍在战斗 = %s",
+                 cases[i].name, cases[i].expect_fight ? "是" : "否");
+        CHECK(lt.in_fight == cases[i].expect_fight, msg);
+        if (cases[i].expect_fight) {
+            snprintf(msg, sizeof(msg), "%s -> 认出 JimBringer 形态 %d",
+                     cases[i].name, cases[i].expect_phase);
+            CHECK(!strcmp(lt.boss, "JimBringer") && lt.phase == cases[i].expect_phase, msg);
+            if (cases[i].expect_phase == 3) {
+                const BossRes* r = res_find(&T, lt.boss, lt.phase);
+                CHECK(r != NULL && !strcmp(r->name, "Jim C. Bringer(P3)"),
+                      "  而且查得到 Jim C. Bringer(P3) 的抗性");
+            }
+        }
+        logtail_close(&lt);
+    }
+    remove(path);
+}
+
+/* 数据表后来出现过的新写法，逐条钉住 —— 这些都是"格式变了就悄悄丢数据"的地方。 */
+static void test_new_formats(void)
+{
+    printf("\n=== 新写法 ===\n");
+
+    /* 1. "0.7-x (resist)" —— 倍率 + 判定混写，0.7 不能丢，
+     *    而且方向必须是"低于 0.7"（二阶比一阶更抗），不能显示成"正好 0.7"。
+     *
+     * ⚠ 这里用**临时表**构造，不再依赖随包数据：原来举的例子是 Despair(P1)/(P2)，
+     * 而 v0.6 已经把这个 Boss 删了。测试不该跟着数据表的增删而红。*/
+    {
+        const char* path = "_tmp_hybrid.txt";
+        FILE* f = fopen(path, "wb");
+        if (f) {
+            fputs("Hybrid(P1)\n"
+                  "Electric: 0.7x\n"          /* 一阶段：正好 0.7 */
+                  "---\n"
+                  "Hybrid(P2)\n"
+                  "Electric: 0.7-x (resist)\n"  /* 二阶段：低于 0.7 */
+                  "---\n", f);
+            fclose(f);
+            ResTable C;
+            if (res_load(&C, path)) {
+                const BossRes* d2 = res_find(&C, "Hybrid", 2);
+                CHECK(d2 != NULL && !strcmp(d2->name, "Hybrid(P2)"),
+                      "0.7-x (resist) 的形态 2 条目能查到");
+                if (d2) {
+                    const ElemVal* e = &d2->v[ELEM_ELECTRIC];
+                    CHECK(e->kind == VAL_RESIST, "0.7-x (resist) 判为「抗」");
+                    CHECK(e->has_mult, "0.7-x (resist) 保留了倍率");
+                    CHECK(fabs(e->mult - 0.7) < 1e-9, "倍率基数 = 0.7");
+                    CHECK(e->bound == -1, "方向 = 低于 0.7（不是正好 0.7）");
+                }
+                const BossRes* d1 = res_find(&C, "Hybrid", 1);
+                CHECK(d1 != NULL && !strcmp(d1->name, "Hybrid(P1)"),
+                      "0.7x 的形态 1 条目能查到");
+                if (d1) {
+                    CHECK(d1->v[ELEM_ELECTRIC].kind == VAL_NUM &&
+                          fabs(d1->v[ELEM_ELECTRIC].mult - 0.7) < 1e-9,
+                          "0.7x 是纯数值");
+                    CHECK(d1->v[ELEM_ELECTRIC].bound == 0, "0.7x 的 bound = 0（精确值）");
+                }
+            }
+            remove(path);
+        }
+    }
+
+    /* 2. 只给判定、没给倍率的老写法仍然正常工作 */
+    const BossRes* y2 = res_find(&T, "Yuki", 2);
+    if (y2) {
+        CHECK(y2->v[ELEM_FIRE].kind == VAL_WEAK && !y2->v[ELEM_FIRE].has_mult,
+              "Yuki(P2) Fire = 1+x (weak)，没有倍率");
+        CHECK(y2->v[ELEM_FROST].kind == VAL_RESIST && !y2->v[ELEM_FROST].has_mult,
+              "Yuki(P2) Frost = 1-x (resist)，没有倍率");
+    }
+
+    /* 2b. ±x 的方向用 bound 表达；基数不是 1 时保留数字并加 <>
+     *     （用临时表验证，不依赖随包数据）*/
+    {
+        const char* path = "_tmp_bound.txt";
+        FILE* f = fopen(path, "wb");
+        if (f) {
+            fputs("BoundTest\n"
+                  "Physical: 0.5-x (resist)\n"      /* <0.5x 抗 */
+                  "Fire: 1.25+x (weak)\n"           /* >1.25x 弱 */
+                  "Frost: 1+x (weak)\n"             /* 基数是 1 -> 只给判定 */
+                  "Electric: 0.75x\n"               /* 精确值 */
+                  "Luminous: 0.8-x\n"               /* 没有判定词，靠数值定强弱 */
+                  "---\n", f);
+            fclose(f);
+            ResTable C;
+            if (res_load(&C, path)) {
+                const BossRes* b = res_find(&C, "BoundTest", 1);
+                CHECK(b != NULL, "bound 测试表能加载");
+                if (b) {
+                    CHECK(b->v[ELEM_PHYSICAL].bound == -1 &&
+                          fabs(b->v[ELEM_PHYSICAL].mult - 0.5) < 1e-9 &&
+                          b->v[ELEM_PHYSICAL].has_mult, "0.5-x (resist) -> 低于 0.5，保留数字");
+                    CHECK(b->v[ELEM_FIRE].bound == 1 &&
+                          b->v[ELEM_FIRE].kind == VAL_WEAK, "1.25+x (weak) -> 高于 1.25");
+                    CHECK(!b->v[ELEM_FROST].has_mult, "1+x (weak) 基数 1 -> 不显示数字");
+                    CHECK(b->v[ELEM_ELECTRIC].bound == 0 &&
+                          fabs(b->v[ELEM_ELECTRIC].mult - 0.75) < 1e-9, "0.75x -> 精确值");
+                    CHECK(b->v[ELEM_LUMINOUS].bound == -1 &&
+                          b->v[ELEM_LUMINOUS].kind == VAL_NUM, "0.8-x 无判定词 -> 数值型但方向为低");
+                }
+            }
+            remove(path);
+        }
+    }
+
+    /* 3. 全角冒号（中文输入法很容易打出来）*/
+    {
+        const char* path = "_tmp_fw.txt";
+        FILE* f = fopen(path, "wb");
+        if (f) {
+            fputs("FullWidth\n"
+                  "Fire\xEF\xBC\x9A" "1.25x\n"      /* 全角冒号（分开写，免得 \x 吃掉后面的 1）*/
+                  "Frost: 0.75x\n"
+                  "---\n", f);
+            fclose(f);
+            ResTable C;
+            if (res_load(&C, path)) {
+                const BossRes* b = res_find(&C, "FullWidth", 1);
+                CHECK(b != NULL, "全角冒号的行被认出来了");
+                if (b) {
+                    CHECK(fabs(b->v[ELEM_FIRE].mult - 1.25) < 1e-9, "全角冒号 Fire = 1.25x");
+                    CHECK(fabs(b->v[ELEM_FROST].mult - 0.75) < 1e-9, "半角冒号 Frost = 0.75x");
+                    CHECK(C.bad_lines == 0, "全角冒号没有产生无法识别的行");
+                }
+            }
+            remove(path);
+        }
+    }
+
+    /* 4. 超长说明：截断必须落在 UTF-8 字符边界上，
+     *    否则那半截字符不合法，转 UTF-16 会整行失败、面板上是空白。 */
+    {
+        const char* path = "_tmp_long.txt";
+        FILE* f = fopen(path, "wb");
+        if (f) {
+            fputs("LongNote\n", f);
+            for (int i = 0; i < 300; i++) fputs("\xE9\x95\xBF", f);   /* 300 个"长" = 900 字节 */
+            fputs("\n---\n", f);
+            fclose(f);
+            ResTable C;
+            if (res_load(&C, path)) {
+                const BossRes* b = res_find(&C, "LongNote", 1);
+                CHECK(b != NULL && b->n_note == 1, "超长说明仍保留为 1 行");
+                if (b && b->n_note == 1) {
+                    size_t len = strlen(b->note[0]);
+                    CHECK(len < RES_NOTE_LEN, "超长说明被截到缓冲区以内");
+                    CHECK(len >= 3 && !strcmp(b->note[0] + len - 3, "…"),
+                          "截断后补了省略号（落在字符边界上）");
+                    wchar_t wbuf[RES_NOTE_LEN];
+                    int n = MultiByteToWideChar(CP_UTF8, 0, b->note[0], -1, wbuf, RES_NOTE_LEN);
+                    CHECK(n > 0, "截断后的说明仍是合法 UTF-8（能转 UTF-16，不会显示成空白）");
+                }
+            }
+            remove(path);
+        }
+    }
+}
+
+/* --boss 的参数解析。以前 --boss 直接拿原始字符串去查表，
+ * "YukiPhase2" 会被拼成 "YukiPhase2(P2)" 这种不存在的键，
+ * 于是所有多形态 Boss 都显示"数据表里没有这只 Boss"。*/
+static void test_boss_arg(void)
+{
+    printf("\n=== --boss 的几种写法 ===\n");
+
+    typedef struct { const char* arg; const char* base; int phase; bool found; } Case;
+    static const Case cases[] = {
+        { "FlyLord",             "FlyLord",          1, true  },
+        { "Corus",               "Corus",            1, true  },
+        { "Yuki",                "Yuki",             1, true  },
+        { "YukiPhase2",          "Yuki",             2, true  },
+        { "Yuki(P2)",            "Yuki",             2, true  },
+        { "JimBringer",          "JimBringer",       1, true  },
+        { "JimBringerPhase2",    "JimBringer",       2, true  },
+        { "JimBringerPhase3",    "JimBringer",       3, true  },
+        { "Jim C. Bringer(P2)",  "Jim C. Bringer",   2, true  },
+        { "Jim C. Bringer(P3)",  "Jim C. Bringer",   3, true  },
+        { "Despair",             "Despair",          1, false },  /* v0.6 已删除 */
+        { "DespairPhase2",       "Despair",          2, false },  /* 解析仍然正确，只是表里没有 */
+        { "Despair(P2)",         "Despair",          2, false },
+        { "Hakli",               "Hakli",            1, true  },  /* v0.6 新增，表里已有 */
+        { "QueenVolt",           "QueenVolt",        1, true  },
+        { "ConeHeadPhase2",      "ConeHead",         2, true  },
+        { "DarkMouth(Clone)",    "DarkMouth",        1, true  },
+        { "NoSuchBoss",          "NoSuchBoss",       1, false },
+    };
+
+    for (size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); i++) {
+        char base[64];
+        int ph = 0;
+        res_parse_boss_arg(cases[i].arg, base, sizeof(base), &ph);
+        char msg[160];
+        snprintf(msg, sizeof(msg), "--boss %s -> 基础名 %s / 形态 %d",
+                 cases[i].arg, cases[i].base, cases[i].phase);
+        CHECK(!strcmp(base, cases[i].base) && ph == cases[i].phase, msg);
+
+        /* 关键：解析出来的东西真的能查到 */
+        const BossRes* r = res_find(&T, base, ph);
+        snprintf(msg, sizeof(msg), "--boss %s -> %s", cases[i].arg,
+                 cases[i].found ? "查得到条目" : "查不到（符合预期）");
+        CHECK((r != NULL) == cases[i].found, msg);
+    }
+
+    /* 形态号对得上具体条目 */
+    {
+        char base[64]; int ph = 1;
+        res_parse_boss_arg("JimBringerPhase3", base, sizeof(base), &ph);
+        const BossRes* r = res_find(&T, base, ph);
+        CHECK(r != NULL && !strcmp(r->name, "Jim C. Bringer(P3)"),
+              "--boss JimBringerPhase3 查到的正是 Jim C. Bringer(P3)");
+    }
+    /* 空参数不能崩 */
+    {
+        char base[64]; int ph = 0;
+        res_parse_boss_arg("", base, sizeof(base), &ph);
+        CHECK(base[0] == 0 && ph == 1, "空参数 -> 空基础名、形态 1");
+        res_parse_boss_arg(NULL, base, sizeof(base), &ph);
+        CHECK(base[0] == 0 && ph == 1, "NULL 参数不崩");
+    }
+}
+
+/* v0.6 验收：新增的 4 只 Boss 能从内部名一路走到表里的段落。
+ * 这条**故意依赖随包数据** —— 它要回答的就是"新 Boss 到底显示不显示得出来"，
+ * 数据表要是漏了这一段，它就该红。 */
+static void test_v06_bosses(void)
+{
+    printf("\n=== v0.6 新增 Boss ===\n");
+    static const char* NEWBOSS[] = { "Hakli", "QueenVolt", "Onyx Pilot", "Gilgamesh" };
+
+    for (int i = 0; i < 4; i++) {
+        const char* disp = res_boss_display(NEWBOSS[i]);
+        const BossRes* r = res_find(&T, NEWBOSS[i], 1);
+        char msg[176];
+        snprintf(msg, sizeof(msg), "%s -> %s 能在表里查到", NEWBOSS[i], disp);
+        CHECK(r != NULL, msg);
+        if (r) {
+            snprintf(msg, sizeof(msg), "%s 的段名就是显示名 %s", NEWBOSS[i], disp);
+            CHECK(!strcmp(r->name, disp), msg);
+        }
+    }
+
+    /* 内部名不带空格时也要能落到 "Onyx Pilot" */
+    CHECK(!strcmp(res_boss_display("OnyxPilot"), "Onyx Pilot"),
+          "OnyxPilot（无空格）也能映射到 Onyx Pilot");
+    CHECK(res_find(&T, "OnyxPilot", 1) != NULL, "OnyxPilot 能查到段");
+
+    /* 这三个内部名是 2026-10-22 的真实日志确认过的：
+     *   now fighting boss: Hakli(Clone) / OnyxPilot(Clone) / Gilgamesh(Clone)
+     * Gilgamesh 还有 Phase2 / Phase3，表里只有一段，靠"去掉形态号再查"回落。*/
+    CHECK(!strcmp(res_boss_display("Hakli"), "Ha'kli"), "日志里的 Hakli -> Ha'kli");
+    CHECK(!strcmp(res_boss_display("OnyxPilot"), "Onyx Pilot"), "日志里的 OnyxPilot -> Onyx Pilot");
+    CHECK(!strcmp(res_boss_display("Gilgamesh"), "Gilgamesh"), "日志里的 Gilgamesh 原样");
+    {
+        const BossRes* g2 = res_find(&T, "Gilgamesh", 2);
+        const BossRes* g3 = res_find(&T, "Gilgamesh", 3);
+        CHECK(g2 != NULL && !strcmp(g2->name, "Gilgamesh"),
+              "Gilgamesh 形态 2 回落到 Gilgamesh 段");
+        CHECK(g3 != NULL && !strcmp(g3->name, "Gilgamesh"),
+              "Gilgamesh 形态 3 回落到 Gilgamesh 段");
+    }
+
+    /* Zaveah 游戏里还没公布数值，表里只有说明行 —— 必须按"说明型条目"正常显示 */
+    const BossRes* z = res_find(&T, "QueenVolt", 1);
+    CHECK(z != NULL && z->is_note && z->n_note >= 1,
+          "Zaveah 目前是说明型条目（数值待补），不能当成空条目");
+
+    /* Ha'kli 的数值要能读对（Shadow 是 1.325x 这种三位小数） */
+    const BossRes* hk = res_find(&T, "Hakli", 1);
+    if (hk) {
+        CHECK(fabs(hk->v[ELEM_FIRE].mult - 0.5) < 1e-9, "Ha'kli 火 = 0.5x");
+        CHECK(fabs(hk->v[ELEM_SHADOW].mult - 1.325) < 1e-9, "Ha'kli 暗 = 1.325x");
+    }
+}
+
+int main(int argc, char** argv)
+{
+    if (argc > 2 && !strcmp(argv[1], "--log")) return probe_log(argv[2]);
+
+    const char* path = argc > 1 ? argv[1] : "Weakness&Resistance.txt";
+    if (!res_load(&T, path)) {
+        printf("无法读取数据文件: %s\n", path);
+        printf("（请在 DLC 目录下运行，或把表文件路径作为参数传入）\n");
+        return 2;
+    }
+    printf("已加载 %s：%d 个 Boss 段落\n", path, T.n);
+
+    test_parse();
+    test_lookup();
+    test_names();
+    test_notes();
+    test_cn_keys();
+    test_absolute_path();
+    test_table_lookup();
+    test_phase_death();
+    test_new_formats();
+    test_boss_arg();
+    test_v06_bosses();
+
+    printf("\n%s：%d 项检查，%d 项失败\n", fails ? "失败" : "全部通过", checks, fails);
+    return fails ? 1 : 0;
+}

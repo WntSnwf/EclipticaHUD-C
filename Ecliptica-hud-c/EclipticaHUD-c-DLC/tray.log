@@ -1,0 +1,6 @@
+Ecliptica DLC tray diagnostic
+exe      = hr-dlc.exe
+sizeof(NOTIFYICONDATAW) = 976
+WM_TRAY_NOTIFY = 0x8002 (WM_APP+2)
+log file = D:\fake C\杂七杂八\EclipticaHUD\Ecliptica-hud-c\EclipticaHUD-c-DLC\tray.log
+NIM_ADD ret=1 lastErr=0 hwnd=0x00000000002C0FBC hIcon=0x0000000000EE0A8F cbSize=976 uID=1
