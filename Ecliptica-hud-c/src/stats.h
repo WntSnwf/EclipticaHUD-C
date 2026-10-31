@@ -29,6 +29,7 @@ typedef struct { double t, v; } Sample;
 /* 聚合量（无滑动窗口，可安全长期保存） */
 typedef struct {
     double dmg, taken, max_hit;
+    double max_dealt;          /* 单次**造成**的最高伤害（面板上的「最强一击」）*/
     int    hits, tokens;
 } Agg;
 

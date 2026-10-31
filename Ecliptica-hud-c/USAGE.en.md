@@ -183,6 +183,8 @@ What the eight rows mean:
 | Row | Meaning |
 |---|---|
 | **Damage** | Total damage you dealt |
+| **Peak DPS** | Highest sliding-window DPS seen so far; only grows, reset when your class changes |
+| **Best Hit** | Highest single damage instance you dealt; only grows, reset when your class changes |
 | **DPS** | Damage per second over the recent window, see [3.2](#32-configini-only-the-dps-window) |
 | **Taken** | Total damage you took |
 | **Hits** | The **number of times** you were hit |
@@ -535,8 +537,11 @@ ECLIPTICA's death is a **two-stage** mechanic, and combat start resets it:
 
 - **First down = you get the "Dead" (knocked down) effect**: you cannot act, but you **can still be
   revived**. After the first revive you gain the **"Mortal Curse"** effect.
-- **Second down = going down again while cursed**: because of Mortal Curse you **cannot be revived**
-  (except through a few class-specific means) and you end up spectating.
+- **Second down = going down again while cursed**: because of Mortal Curse you **cannot normally be
+  revived** and you end up spectating. The one exception is the Thaumaturge upgrade
+  **`Thaumaturge: Everlife`**: it spends 25 of the player's current-turn max HP plus 100% LIFE
+  ENERGY (built up by Thaumaturge attacks) to revive a player carrying Mortal Curse (it cannot be
+  used once max HP is below 25), and the reviver then gains 60 stacks of `Breached` and `Weakened`.
 - **Revive on combat start**: at every stage start and every boss-fight start, players who are
   "Dead" are revived and second-down players are rolled back to first down.
   **Normal bosses only do this at P1**; the **final bosses (`Jim C. Bringer`, `Gilgamesh`) do it at

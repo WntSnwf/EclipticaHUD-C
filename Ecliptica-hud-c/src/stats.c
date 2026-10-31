@@ -23,6 +23,8 @@ static void unit_push(Sample* buf, int* head, int* n, double t, double v)
 static void unit_add_dealt(Unit* u, double t, double v)
 {
     u->a.dmg += v;
+    /* 「最强一击」：单次造成的最高伤害。只增不减，随 unit_start 归零 */
+    if (v > u->a.max_dealt) u->a.max_dealt = v;
     unit_push(u->dealt, &u->dh, &u->dn, t, v);
 }
 
@@ -416,7 +418,22 @@ bool stats_on_event(Stats* s, const Event* e)
                 s->pending_tokens = 0;
             }
         }
-        if (e->cls[0]) copy_str(s->cls, sizeof(s->cls), e->cls);
+        if (e->cls[0]) {
+            /* 职业变更就重置**最高 DPS**。
+             * 不同职业的血量与定位完全不同（例：Spellhammer 是 150 血的坦克型，
+             * Thaumaturge 是 100 血、可治疗的辅助型），两者的 DPS 根本不在一个区间，
+             * 跨职业取"最高"没有可比性。本阶段的峰值本来就随换阶段清零，
+             * 这里主要清掉的是**本局**（以及进行中的 Boss 战）的峰值。*/
+            if (s->cls[0] && strcmp(s->cls, e->cls) != 0) {
+                s->cur_run.peak_dps = 0;
+                s->cur_fight.peak_dps = 0;
+                /* 「最强一击」同理：坦克型和辅助型的单发伤害不是一个量级 */
+                s->run_u.a.max_dealt = 0;
+                s->stage_u.a.max_dealt = 0;
+                s->fight_u.a.max_dealt = 0;
+            }
+            copy_str(s->cls, sizeof(s->cls), e->cls);
+        }
         s->intermission = false;
         s->in_world = true;
         break;

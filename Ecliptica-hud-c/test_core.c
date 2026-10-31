@@ -476,6 +476,64 @@ static void test_peak_dps(void)
     CHECK(s.cur_stage.peak_dps == 0, "换阶段后阶段峰值清零");
     CHECK(s.cur_run.peak_dps >= peak_before, "换阶段不影响本局峰值");
 
+    /* 职业变更 -> 本局峰值也要清零：不同职业的 DPS 区间不可比 */
+    {
+        Stats c;
+        Event ce;
+        StatsView cv;
+        stats_init(&c);
+        memset(&ce, 0, sizeof(ce));
+        ce.type = EV_ROOM_ENTER; strcpy(ce.name, "Ecliptica"); ce.t = 10;
+        stats_on_event(&c, &ce);
+
+        /* 坦克型职业：先打出一段高 DPS */
+        ce.type = EV_STAGE; strcpy(ce.name, "Stage_VRCHub");
+        strcpy(ce.cls, "Spellhammer"); ce.t = 11;
+        stats_on_event(&c, &ce);
+        for (int i = 1; i <= 10; i++) {
+            ce.type = EV_DEALT; ce.amount = (i == 5) ? 4200 : 300; ce.t = 11 + i;
+            c.last_t = ce.t;
+            stats_on_event(&c, &ce);
+        }
+        c.last_t = 21;
+        stats_view(&c, c.last_t, 10, &cv);
+        stats_sample_peak(&c, &cv);
+        double tank_peak = c.cur_run.peak_dps;
+        CHECK(tank_peak > 0, "坦克职业打出了峰值");
+        CHECK(c.run_u.a.max_dealt == 4200, "最强一击记录到 4200");
+        stats_view(&c, c.last_t, 10, &cv);
+        CHECK(cv.run.max_dealt == 4200, "最强一击出现在本局列");
+
+        /* 同一职业再来一次 -> 不重置 */
+        ce.type = EV_STAGE; strcpy(ce.name, "Stage_CrystalMines");
+        strcpy(ce.cls, "Spellhammer"); ce.t = 30;
+        stats_on_event(&c, &ce);
+        CHECK(c.cur_run.peak_dps == tank_peak, "职业没变时峰值保留");
+
+        /* 换成辅助型职业 -> 本局峰值清零 */
+        ce.type = EV_STAGE; strcpy(ce.name, "Stage_BalboaRuins");
+        strcpy(ce.cls, "Thaumaturge"); ce.t = 40;
+        stats_on_event(&c, &ce);
+        CHECK(c.cur_run.peak_dps == 0, "职业变更后本局峰值清零");
+        CHECK(!strcmp(c.cls, "Thaumaturge"), "职业字段已更新");
+
+        /* 「最强一击」同样跟着职业清零 */
+        CHECK(c.run_u.a.max_dealt == 0, "职业变更后最强一击清零（本局）");
+        CHECK(c.stage_u.a.max_dealt == 0, "职业变更后最强一击清零（本阶段）");
+
+        /* 换职业后重新累积，不会把旧职业的数字带回来 */
+        for (int i = 1; i <= 10; i++) {
+            ce.type = EV_DEALT; ce.amount = 50; ce.t = 40 + i;
+            c.last_t = ce.t;
+            stats_on_event(&c, &ce);
+        }
+        c.last_t = 50;
+        stats_view(&c, c.last_t, 10, &cv);
+        stats_sample_peak(&c, &cv);
+        CHECK(c.cur_run.peak_dps > 0 && c.cur_run.peak_dps < tank_peak,
+              "新职业的峰值从零重新累积");
+    }
+
     /* 看历史局时采样不得污染当前记录 */
     {
         double keep = s.cur_run.peak_dps;

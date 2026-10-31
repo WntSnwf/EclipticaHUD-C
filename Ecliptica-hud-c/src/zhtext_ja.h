@@ -54,6 +54,7 @@
 #define TXT_ROW_DMG      "与ダメージ"
 #define TXT_ROW_DPS      "DPS"
 #define TXT_ROW_PEAKDPS  "最高 DPS"
+#define TXT_ROW_MAXDEALT "最大与ダメ"
 #define TXT_ROW_TAKEN    "被ダメージ"
 #define TXT_ROW_HITS     "被弾"
 #define TXT_ROW_MAXHIT   "最大被弾"

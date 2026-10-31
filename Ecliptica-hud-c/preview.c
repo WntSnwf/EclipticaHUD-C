@@ -47,6 +47,17 @@ static void write_bmp(const char* path, int w, int h, const void* bits)
     printf("wrote %s (%dx%d)\n", path, w, h);
 }
 
+/* 模拟运行时的 100 ms 定时器：推进 last_t 并采样「最高 DPS」。
+ * 不采样的话最高 DPS 永远是 0 —— 于是 DPS 有值、最高 DPS 却是 0，
+ * 截图看起来就像 bug（真实程序里这两个值由定时器持续采样得出）。*/
+static void tick(Stats* st, double t)
+{
+    StatsView v;
+    st->last_t = t;
+    stats_view(st, t, 10, &v);      /* 窗口固定 10 秒，与下面 cfg.stat_window 一致 */
+    stats_sample_peak(st, &v);
+}
+
 static void replay(const char* path, Stats* st, EvLog* ev, long maxlines)
 {
     FILE* f = fopen(path, "rb");
@@ -60,6 +71,7 @@ static void replay(const char* path, Stats* st, EvLog* ev, long maxlines)
         Event e;
         if (parse_line(line, &e)) {
             if (stats_on_event(st, &e)) evtext_push(ev, st, &e);
+            if (e.t > 0) tick(st, e.t);
             hits++;
         }
         if (maxlines > 0 && n >= maxlines) break;
@@ -72,25 +84,37 @@ static void seed_log(EvLog* ev, Stats* st)
 {
     Event e;
     memset(&e, 0, sizeof(e));
+#define EMIT() do { stats_on_event(st, &e); evtext_push(ev, st, &e); tick(st, e.t); } while (0)
+
     e.t = 0; e.type = EV_ROOM_ENTER; strcpy(e.name, "Ecliptica - Demo Playtest");
-    stats_on_event(st, &e); evtext_push(ev, st, &e);
-    e.t = 1; e.type = EV_STAGE; strcpy(e.name, "ProtoColony"); strcpy(e.cls, "Nekomancer");
-    stats_on_event(st, &e); evtext_push(ev, st, &e);
+    EMIT();
+    /* 职业用 Spellhammer：真实职业名，且是"可输出的 150 血坦克型"。
+     * 之前用的 Nekomancer 是辅助型召唤师，配 1200 的单发伤害不像话。*/
+    e.t = 1; e.type = EV_STAGE; strcpy(e.name, "ProtoColony"); strcpy(e.cls, "Spellhammer");
+    EMIT();
+    /* 进 Boss 战之前的清杂伤害：让「阶段」这一列也有数字
+     * （Boss 战期间的伤害只累计到「本场」，阶段列会一直是 0，看起来像坏了）。*/
+    e.t = 1.4; e.type = EV_DEALT; e.amount = 320; EMIT();
+    e.t = 1.8; e.type = EV_DEALT; e.amount = 288; EMIT();
     e.t = 2; e.type = EV_BOSS_FIGHT; strcpy(e.name, "FlyLord"); e.progress = 0.06;
-    stats_on_event(st, &e); evtext_push(ev, st, &e);
-    e.t = 3; e.type = EV_DEALT; e.amount = 1204;
-    stats_on_event(st, &e); evtext_push(ev, st, &e);
-    e.t = 4; e.type = EV_DAMAGE_TAKEN; e.amount = 43; strcpy(e.name, "(Peltapod) attack_Slam");
-    stats_on_event(st, &e); evtext_push(ev, st, &e);
-    e.t = 5; e.type = EV_OWNERSHIP; strcpy(e.name, "FlyLord"); strcpy(e.cls, "OtherPlayer");
-    stats_on_event(st, &e); evtext_push(ev, st, &e);
-    e.t = 6; e.type = EV_TOKEN_SPAWN;
-    stats_on_event(st, &e); evtext_push(ev, st, &e);
-    e.t = 7; e.type = EV_DAMAGE_TAKEN; e.amount = 118; strcpy(e.name, "attack_Spit (2)");
-    stats_on_event(st, &e); evtext_push(ev, st, &e);
+    EMIT();
+    /* 开场爆发（约 1.5 秒内三连），这一段就是「最高 DPS」的来源 */
+    e.t = 3.0; e.type = EV_DEALT; e.amount = 486; EMIT();
+    e.t = 3.6; e.type = EV_DEALT; e.amount = 512; EMIT();   /* 单发最高 = 最强一击 */
+    e.t = 4.2; e.type = EV_DEALT; e.amount = 438; EMIT();
+    e.t = 5; e.type = EV_DAMAGE_TAKEN; e.amount = 43; strcpy(e.name, "(Peltapod) attack_Slam");
+    EMIT();
+    e.t = 6; e.type = EV_OWNERSHIP; strcpy(e.name, "FlyLord"); strcpy(e.cls, "OtherPlayer");
+    EMIT();
+    e.t = 7; e.type = EV_TOKEN_SPAWN; EMIT();
+    e.t = 7.5; e.type = EV_DAMAGE_TAKEN; e.amount = 118; strcpy(e.name, "attack_Spit (2)");
+    EMIT();
     /* 死亡不再产生事件（见 README「为什么没有死亡统计」），演示数据里也就不放 */
-    e.t = 9; e.type = EV_BOSS_DEAD; strcpy(e.name, "FlyLord");
-    stats_on_event(st, &e); evtext_push(ev, st, &e);
+    /* 收尾的平砍：让当前 DPS 明显低于已经记录的峰值，两个数字才不会重复 */
+    e.t = 13; e.type = EV_DEALT; e.amount = 236; EMIT();
+    e.t = 14; e.type = EV_DEALT; e.amount = 274; EMIT();
+    e.t = 16; e.type = EV_BOSS_DEAD; strcpy(e.name, "FlyLord"); EMIT();
+#undef EMIT
 }
 
 int main(int argc, char** argv)

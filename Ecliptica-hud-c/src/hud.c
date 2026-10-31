@@ -33,7 +33,7 @@
 #define C_PURPLE     RGB(196, 168, 255)
 
 /* ---------------- 逻辑版式常量 ---------------- */
-#define TABLE_ROWS 9
+#define TABLE_ROWS 10
 #define ROW_H      19
 #define PAD        10
 #define TITLE_H    26
@@ -539,10 +539,11 @@ static COLORREF row_color(int row)
     switch (row) {
     case 1: return C_GOLD;      /* DPS */
     case 2: return C_GOLD;      /* 最高 DPS */
-    case 3: return C_RED;       /* 承伤 */
-    case 5: return C_RED;       /* 最大受击 */
-    case 7: return C_RED;       /* 承伤/秒 */
-    case 8: return C_GREEN;     /* 印记 */
+    case 3: return C_GOLD;      /* 最强一击（同样是"打出去的"高光数字）*/
+    case 4: return C_RED;       /* 承伤 */
+    case 6: return C_RED;       /* 最大受击 */
+    case 8: return C_RED;       /* 承伤/秒 */
+    case 9: return C_GREEN;     /* 印记 */
     default: return C_TEXT;
     }
 }
@@ -585,6 +586,10 @@ static void draw_table(HDC dc, const HudLayout* L, const StatsView* v, int peak_
      * 因此只填对应那一列，另外两列显示 — （和"承伤/秒"行的风格一致）。*/
     ROW(TXT_ROW_PEAKDPS, FMT_RATE,  v->peak_stage, v->peak_run, v->peak_fight, true);
     rows[i - 1].mask = 1 << (peak_scope == CFG_PEAK_STAGE ? 0 : 1);
+    /* 最强一击：单次造成的最高伤害。三级都给（和「最大受击」对称），
+     * 阶段/本场随各自开始归零，本局在换职业时归零。*/
+    ROW(TXT_ROW_MAXDEALT, FMT_AMOUNT,
+        sg->max_dealt, rn->max_dealt, ft->max_dealt, true);
     ROW(TXT_ROW_TAKEN,  FMT_AMOUNT, sg->taken, rn->taken, ft->taken, true);
     ROW(TXT_ROW_HITS,   FMT_INT,    sg->hits, rn->hits, ft->hits, true);
     ROW(TXT_ROW_MAXHIT, FMT_AMOUNT, sg->max_hit, rn->max_hit, ft->max_hit, true);

@@ -56,7 +56,9 @@ modification, no OSC required**. Implemented in pure C + Win32/GDI, linked only 
 | **Run** | From entering the Ecliptica world until leaving it |
 | **Fight** | A single boss fight (`Phase2`/`Phase3` of the same boss count as a continuation and are merged) |
 
-Each tier reports: Damage, DPS, Taken, hit count, Max Hit, Avg Hit, Taken/s and Tokens.
+Each tier reports: Damage, Peak DPS, Best Hit, DPS, Taken, hit count, Max Hit, Avg Hit, Taken/s
+and Tokens. **Best Hit** is the highest single damage instance you dealt; it resets when your
+class changes, just like Peak DPS.
 DPS uses a switchable sliding window: **3 / 5 / 10 / 30 / 60 / 120 seconds**.
 > **Deaths are neither counted nor logged.** See
 > [Why there is no death statistic](#why-there-is-no-death-statistic).
@@ -67,8 +69,11 @@ ECLIPTICA's death is a **two-stage** mechanic, and combat start resets it:
 
 - **First down = you get the "Dead" (knocked down) effect**: you cannot act, but you **can still be
   revived**. After the first revive you gain the **"Mortal Curse"** effect.
-- **Second down = going down again while cursed**: because of Mortal Curse you **cannot be revived**
-  (except through a few class-specific means) and you end up spectating.
+- **Second down = going down again while cursed**: because of Mortal Curse you **cannot normally be
+  revived** and you end up spectating. The one exception is the `Thaumaturge` upgrade
+  **`Thaumaturge: Everlife`**: it spends 25 of the player's current-turn max HP plus 100% LIFE
+  ENERGY (built up by Thaumaturge attacks) to revive a player carrying Mortal Curse (it cannot be
+  used once max HP is below 25), and the reviver then gains 60 stacks of `Breached` and `Weakened`.
 - **Revive on combat start**: at every stage start and every boss-fight start, players who are
   "Dead" are revived and second-down players are rolled back to first down.
   **Normal bosses only do this at P1**; the **final bosses (`Jim C. Bringer`, `Gilgamesh`) do it at
@@ -543,7 +548,7 @@ VRChat output_log.txt
 
 ### Rendering and scaling
 
-The memory DC uses the `MM_ANISOTROPIC` mapping to scale the **460×620 logical coordinate
+The memory DC uses the `MM_ANISOTROPIC` mapping to scale the **460×658 logical coordinate
 space** uniformly to window pixels, then multiplies by the system DPI factor. Fonts, spacing
 and buttons therefore keep **one single layout** at any scale from 60% to 200%, with no
 misplaced text; before `BitBlt` the mapping is reset to `MM_TEXT` so the source rectangle is
