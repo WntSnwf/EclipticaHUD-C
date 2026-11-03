@@ -155,12 +155,12 @@ its **first 5 characters plus `…`**:
 
 | Name in the log | Displayed as | Characters |
 |---|---|---|
-| `SRETR00` | `SRETR00` | 7, as is |
-| `Millianna_` | `Millianna_` | 10, as is (the boundary) |
-| `ひなた_hinatan` | `ひなた_h…` | 11 → shortened |
-| `てぃな xplaTina` | `てぃな x…` | 12 → shortened |
-| `蒼凪 みなと／Minato` | `蒼凪 みな…` | 13 → shortened |
-| `三松许今年也超爱你明年也保证` | `三松许今年…` | 14 → shortened |
+| `Name100` | `Name100` | 7, as is |
+| `PlayerName` | `PlayerName` | 10, as is (the boundary) |
+| `PlayerName1` | `Playe…` | 11 → shortened |
+| `PlayerName12` | `Playe…` | 12 → shortened |
+| `PlayerName123` | `Playe…` | 13 → shortened |
+| `PlayerName1234` | `Playe…` | 14 → shortened |
 
 The limit counts **characters**, not bytes, and only cuts on character boundaries — so you
 never get half a Chinese character or a garbage box. The `Target switch <object> → <player>`
@@ -183,6 +183,8 @@ What the eight rows mean:
 | Row | Meaning |
 |---|---|
 | **Damage** | Total damage you dealt |
+| **Peak DPS** | Highest sliding-window DPS seen so far; only grows, reset when your class changes |
+| **Best Hit** | Highest single damage instance you dealt; only grows, reset when your class changes |
 | **DPS** | Damage per second over the recent window, see [3.2](#32-configini-only-the-dps-window) |
 | **Taken** | Total damage you took |
 | **Hits** | The **number of times** you were hit |
@@ -191,9 +193,8 @@ What the eight rows mean:
 | **Taken/s** | Damage taken per second over the recent window |
 | **Tokens** | The number of tokens picked up |
 
-> The table has **no "Deaths" row**: death counts are not part of the statistics. A death only
-> leaves one "You died" entry in the event log (see
-> [Q4](#q4-why-arent-deaths-counted-in-the-stats)).
+> The table has **no "Deaths" row**: death is not decided at all, so it is neither counted nor
+> written to the event log (see [Q4](#q4-why-arent-deaths-counted-in-the-stats)).
 
 **Why are some cells 0 or `—`?**
 
@@ -525,24 +526,37 @@ with another enemy's target — otherwise you would see something like the previ
 `LavaSac → so-and-so` and take it for FlyLord's target.
 
 Outside a boss fight the Target column still reports the most recent switch together with the
-object name (for example `Ice Squid → zukkiii 00:12`), because at that point there is no
+object name (for example `Ice Squid → Name2 00:12`), because at that point there is no
 "current boss" to speak of.
 
 ### Q4. Why aren't deaths counted in the stats?
 
-**Death counts are no longer part of the statistics**, so the three-tier table has no
-"Deaths" row and the replay summary no longer prints `deaths=`.
+**Deaths are neither counted nor logged** — the program does not try to decide whether you died.
 
-A death does exactly one thing: it writes a "You died" entry to the **event log**.
+ECLIPTICA's death is a **two-stage** mechanic, and combat start resets it:
 
-The reason it still needs a little handling: one death **floods the log with dozens of lines**
-of `Local controller dead, switching off.` (34 lines within 8 seconds, measured), with
-unrelated lines such as `ECLIPTICA saving SESSION ID` mixed in. The program requires that
-"after the previous death, proof of being alive must appear again" (damage dealt / damage
-taken / stage change / boss fight started / token spawned), plus a 3-second quiet period, so
-that **one death writes only one log entry** — otherwise the log would be flooded with those
-dozens of lines.
+- **First down = you get the "Dead" (knocked down) effect**: you cannot act, but you **can still be
+  revived**. After the first revive you gain the **"Mortal Curse"** effect.
+- **Second down = going down again while cursed**: because of Mortal Curse you **cannot normally be
+  revived** and you end up spectating. The one exception is the Thaumaturge upgrade
+  **`Thaumaturge: Everlife`**: it spends 25 of the player's current-turn max HP plus 100% LIFE
+  ENERGY (built up by Thaumaturge attacks) to revive a player carrying Mortal Curse (it cannot be
+  used once max HP is below 25), and the reviver then gains 60 stacks of `Breached` and `Weakened`.
+- **Revive on combat start**: at every stage start and every boss-fight start, players who are
+  "Dead" are revived and second-down players are rolled back to first down.
+  **Normal bosses only do this at P1**; the **final bosses (`Jim C. Bringer`, `Gilgamesh`) do it at
+  the start of every phase**.
 
+So the same `Local controller dead` line may be a first down (revived seconds later) or a second
+down, and `new specatator` (entering spectator) is **not specific to death at all** — joining a run
+in progress and switching the spectate target both print it.
+
+Measured on one day's log (97k lines): `Local controller dead` appeared **1** time,
+`new specatator` **44** times.
+
+Earlier versions tried time windows, "damage taken as proof of revival" and spectator-count
+de-duplication; all of them under- or over-count under this mechanic, so **the whole death
+detection was removed**. For now, counting your own deaths is up to you.
 ### Q5. The status bar shows "No VRChat log found"
 
 The program looks for `output_log*.txt` in these places:
@@ -659,8 +673,45 @@ from before the wipe, page back with the **◀ on the left** at the bottom.
 > Incidentally: the first stage of a normal run **is** the starting lobby, and that case is
 > not misdetected as a wipe.
 
+### Q15. Why does the stage name sometimes show a raw English internal name?
+
+The stage name on the panel is **translated from the log**. The log line looks like this:
+
+```
+ECLIPTICA - now in stage: Stage_CrystalMines on phase: 0.36 as class: Nekomancer
+```
+
+The part after `Stage_` (`CrystalMines`) is the game's internal scene name; the program looks it up
+in a table and shows the proper name (`CrystalMines` → **Halram Mines**).
+
+**Maps that are not in the table are shown as their raw internal name**, e.g. `SomeNewMap`. That is
+deliberate: internal and display names are often unrelated (`CrystalMines` is Halram Mines,
+`Bringer` is Bringer's Desert), so showing the raw name beats showing a guess. The full table is in
+the README section "Where map (stage) names come from".
+
+**The two final-boss maps (Gilgamesh, Jim C. Bringer) do not rely on internal names at all — they
+are derived from the boss:**
+
+| Boss | Phase | Stage name shown |
+|---|---|---|
+| Gilgamesh | P1 / P2 | Altar of Destruction |
+| Gilgamesh | P3 | Ground Zero |
+| Jim C. Bringer | P1 / P2 | Bringer's Desert |
+| Jim C. Bringer | P3 | Bringer Mothership |
+
+So as soon as the panel recognises the final boss, the map name is guaranteed correct.
+
+The reason is that **the final-boss maps use the boss name as their internal name**: `Stage_Gilgamesh`
+may be Altar of Destruction or Ground Zero (the map changes at phase 3), and `Stage_Bringer` is the
+same. A stage line alone cannot tell them apart, so the program shows the first-two-phase map and
+corrects it once the boss line arrives.
+
+> If a map keeps showing a raw internal name, it simply is not in the table yet. Send the
+> `now in stage: Stage_XXX` line from your log and it can be added.
+
 ---
 
+## 6. Advanced usage
 ## 6. Advanced usage
 
 ### 6.1 First, learn to open a command line

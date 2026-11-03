@@ -376,9 +376,10 @@ bool parse_line(const char* raw, Event* out)
         if (!strcmp(b, "[Behaviour] OnLeftRoom") ||
             starts(b, "VRCApplication: HandleApplicationQuit")) {
             out->type = EV_ROOM_LEFT;
-        } else if (!strcmp(b, "Local controller dead, switching off.")) {
-            out->type = EV_PLAYER_DEAD;
         }
+        /* 死亡相关的两行（"Local controller dead, switching off." 与 "new specatator"）
+         * 刻意不识别：一倒/二倒 + 每次开战复活一倒的机制让日志无法可靠判定生死，
+         * 强行检测只会给出错误数字。见 README「为什么没有死亡统计」。*/
     }
     return out->type != EV_NONE;
 }
@@ -402,7 +403,6 @@ const char* ev_type_name(EventType t)
     case EV_DEALT:            return "dealt";
     case EV_DAMAGE_TAKEN:     return "damage_taken";
     case EV_OWNERSHIP:        return "ownership";
-    case EV_PLAYER_DEAD:      return "player_dead";
     case EV_TOKEN_SPAWN:      return "token_spawn";
     case EV_SESSION_SAVE:     return "session_save";
     case EV_ENEMY_SPAWN:      return "enemy_spawn";

@@ -53,12 +53,12 @@
 #define TXT_ROW_DMG      "Damage"
 #define TXT_ROW_DPS      "DPS"
 #define TXT_ROW_PEAKDPS  "Peak DPS"
+#define TXT_ROW_MAXDEALT "Best Hit"
 #define TXT_ROW_TAKEN    "Taken"
 #define TXT_ROW_HITS     "Hits"
 #define TXT_ROW_MAXHIT   "Max Hit"
 #define TXT_ROW_AVGHIT   "Avg Hit"
 #define TXT_ROW_TPS      "Taken/s"
-#define TXT_ROW_DEATHS   "Deaths"
 #define TXT_ROW_TOKENS   "Tokens"
 
 /* Info area */

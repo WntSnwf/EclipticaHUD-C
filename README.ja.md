@@ -58,11 +58,48 @@ VRChat ワールド **Ecliptica** の戦闘統計オーバーレイ：VRChat の
 | **周回 Run** | Ecliptica ワールドに入ってから出るまでの 1 回 |
 | **戦闘 Fight** | 1 回の Boss 戦（同一 Boss の `Phase2/Phase3` は続戦とみなして合算）|
 
-各階層で表示するのは：与ダメージ、DPS、被ダメージ、被弾回数、最大被弾、平均被弾、被ダメ/秒、トークン。
+各階層で表示するのは：与ダメージ、最高 DPS、最大与ダメ、DPS、被ダメージ、被弾回数、
+最大被弾、平均被弾、被ダメ/秒、トークン。
+**最大与ダメ**（Best Hit）は 1 回で与えた最大ダメージで、最高 DPS と同じく転職時にリセットされます。
 DPS は切り替え可能なスライディングウィンドウを使います：**3 / 5 / 10 / 30 / 60 / 120 秒**。
-（初期のバージョンには「死亡」の行もありましたが、要望により削除しました —— 死亡はイベントログに
-1 件記録が残るだけです。）
+> **死亡は統計にもイベントログにも残しません。** 理由は下記。
 
+### 死亡統計がない理由
+
+ECLIPTICA の死亡は**二段階**で、しかも戦闘開始によってリセットされます：
+
+- **一倒 = 「倒地 / Dead」効果**：行動できないが**蘇生は可能**。一度蘇生されると
+  **「致命の呪い / Mortal Curse」**効果を得ます。
+- **二倒 = 呪いを持ったまま再度倒地**：Mortal Curse のため**通常は蘇生できず**、観戦になります。
+  唯一の例外が Thaumaturge の強化 **`Thaumaturge: Everlife`** で、
+  25 点のそのターンの最大 HP と 100% の LIFE ENERGY（Thaumaturge の攻撃で溜まる）を消費して
+  Mortal Curse 持ちを蘇生できます（最大 HP が 25 未満になると使えません）。
+  蘇生した側は 60 スタックの `Breached`（破防）と `Weakened`（虚弱）を得ます。
+- **戦闘開始時の蘇生**：各ステージ開始時と Boss 戦開始時に、倒地中のプレイヤーは蘇生され、
+  二倒のプレイヤーは一倒に戻されます。
+  **通常の Boss は P1 開始時のみ**この仕組みが働き、**終局 Boss（`Jim C. Bringer` / `Gilgamesh`）は
+  各フェーズ開始時に毎回**働きます。
+
+つまり「いま自分がどの状態か」はログだけでは決められません：同じ `Local controller dead` の行が
+一倒（数秒後に蘇生）のこともあれば二倒のこともあり、`new specatator` は**死亡専用ではありません**。
+
+実測 `output_log_2026-10-28_08-29-41.txt`（9.7 万行・1 日）：
+
+| 行 | 出現回数 |
+|---|---|
+| `Local controller dead, switching off.` | **1** |
+| `new specatator` | **44** |
+
+44 回のうち大半は「途中参加で強制的に観戦」と「観戦対象の切り替え」で、死亡に対応するものはごく僅か。
+以前試した判定（時間窓、被ダメージを蘇生の証拠にする、観戦回数で畳む）は、この仕組みの前では
+どうしても過小・過大に数えます —— 蘇生された一倒は痕跡が残らず、二倒は観戦対象を切り替えるまで
+現れません。
+
+**だからプログラムは推測しません。** この 2 行は他のログ行と同じく無視します：
+
+- パネルに「死亡」の欄はありません
+- イベントログに「戦闘不能」は出ません
+- 再生サマリに死亡回数は出ません
 多形態 Boss（例えば `JimBringer → JimBringerPhase2 → JimBringerPhase3`）には 2 つの
 落とし穴があり、どちらもプログラム側で対処しています：
 
@@ -86,7 +123,7 @@ DPS は切り替え可能なスライディングウィンドウを使います�
 - 周回の集計では切替回数の累計を表示
 - **Boss 戦中はその Boss 自身のターゲットだけを認める**。ログにまだその Boss の `ownership` が
   ないときは `ターゲット —` と表示し、他の敵のターゲットで偽装することは決してしません（下記参照）
-- Boss 戦中でないときは、直近の切替をオブジェクト名付きで報告（`Ice Squid → zukkiii 00:12`）
+- Boss 戦中でないときは、直近の切替をオブジェクト名付きで報告（`Ice Squid → Name2 00:12`）
 - イベントログには `ターゲット切替 <オブジェクト> → <プレイヤー>` を記録
 
 > **Boss 戦の「最初のターゲット」はどこから来るのか。** ターゲットは `ownership` 行からしか
@@ -422,21 +459,16 @@ UTF-8 で、中国語のワールド名や日本語・中国語のプレイヤ�
 | 与ダメージ | `Dealing 74 STRIKE damage` / `Dealing 38 NON-STRIKE damage` |
 | 被ダメージ | `damage has been taken: 43, from source: (Peltapod) attack_Slam` |
 | ターゲット（ヘイト）切替 | `ownership of Amaziah transferred to OtherPlayer` |
-| 死亡 | `Local controller dead, switching off.`（イベントログに書くだけで、統計には含めません）|
+| 死亡（**意図的に無視**）| `Local controller dead, switching off.` / `new specatator` —— イベントを生成しません |
 | トークン | `spawn token, True, 55` + `ECLIPTICA saving SESSION ID 11508` |
 | 敵プール | `Initializing Enemy POOL ID17 as ENEMY ID 87` / `Retiring Enemy POOL ID19` |
 
 ### はまりやすい 8 つの罠
 
-**死亡の連投。** 1 回の死亡はログに `Local controller dead, switching off.` を何十行も連投します
-（実測で 8 秒間に 34 行）。その間に `ECLIPTICA saving SESSION ID` のような無関係な行も混ざります。
-プログラムは「前回の死亡以降に、生きている証拠（与ダメージ / 被ダメージ / ステージ変更 /
-Boss 戦開始 / トークン出現）が再び現れること」を要求し、さらに 3 秒の静穏期間を重ねます。
-
-> 死亡回数は**すでに統計に含めていません**（パネルに「死亡」の欄はありません）。この重複排除
-> ロジックは現在**イベントログ**のためだけに働きます：1 回の死亡で「戦闘不能」を 1 件だけ書き、
-> そうでなければログが連投の何十行で埋まってしまいます。
-
+**死亡行は意図的に解析しません。** `Local controller dead, switching off.` と `new specatator` は
+他のログ行と同じく無視します —— 一倒／二倒＋戦闘開始時の蘇生という仕組みのため、ログだけでは
+生死を判定できないからです（根拠と実測値は
+[死亡統計がない理由](#死亡統計がない理由)）。
 **多形態 Boss の撃破行は遅れてやってくる。** 実測で `JimBringerPhase3` は 19:12:21 に開戦し、
 `Boss JimBringerPhase2 dead` は 19:12:22 まで現れませんでした。プログラムが撃破を決算するときは
 オブジェクト名の完全一致か形態番号の一致を要求します。そうでなければこの行が始まったばかりの
@@ -486,6 +518,66 @@ Boss：`FlyLord → Beelzebub`、`AntKing → Khepri`、`ManalyteAncient → Aba
 進行ステージ：`0.43 → Antumbral`；
 被ダメージ内訳：`(Khepri) attack_Claws2 → Khepri · Claws 2`、`NukeHitbox (BIG) → Nuke (big)`。
 
+### マップ（ステージ）名の出どころ
+
+ログには `ECLIPTICA - now in stage: Stage_CrystalMines on phase: 0.36 …` のように出ます。
+`Stage_` の接頭辞を外した残りを、**実測で確認できた項目だけ**を載せた表で変換します：
+
+| 内部名 | 表示名 | 備考 |
+|---|---|---|
+| `CrystalMines` | Halram Mines | 内部名と表示名に**関連が無い** |
+| `CalamityPalaceV2` | Calamity Palace 2 | `V2` はそのまま 2 |
+| `GMFuncFlat3` | GM_Func_Flat_3 | |
+| `OuterHeven` | Outer Heaven | 内部名は **a が抜けている** |
+| `Hall of Beginnings` | Hall of Beginnings | 内部名に**空白が入る** |
+| `Gilgamesh` | Altar of Destruction | 終局マップ。内部名が**そのまま Boss 名**（下記）|
+| `Bringer` | Bringer's Desert | 同上 |
+| `BalboaRuins` / `CopiedCity` / `GMBigcity` / `GMFuncFlat` / `LostElysia` / `ProtoColony` / `VRCHub` | … | |
+
+設計方針は 2 つ：
+
+1. **推測しない。** 実際のログに現れ、対応が確認できた内部名だけを表に入れます。未収録の名前は
+   **そのまま表示**します（例：`SomeNewMap`）—— 間違っているかもしれない推測より、
+   生の内部名を出す方が誠実です。照合は完全一致なので、あるマップが別のマップとして
+   表示されることはありません。
+2. **1 つの内部名が 2 つのマップを指す場合は、Boss の形態で決めます。** 終局マップの内部名は
+   Boss 名そのものなので、`Stage_Gilgamesh` は Altar of Destruction のことも Ground Zero の
+   こともあり、`Stage_Bringer` も同様です。プログラムはまず前 2 形態のマップを表示し、
+   Boss 行が届いた時点で形態に応じて上書きします：
+
+| ステージ内部名 | Boss の形態 | 表示 |
+|---|---|---|
+| `Stage_Gilgamesh` | `Gilgamesh` / `GilgameshPhase2` | Altar of Destruction |
+| `Stage_Gilgamesh` | `GilgameshPhase3` | **Ground Zero** |
+| `Stage_Bringer` | `JimBringer` / `JimBringerPhase2` | Bringer's Desert |
+| `Stage_Bringer` | `JimBringerPhase3` | **Bringer Mothership** |
+
+Boss 行は必ずステージ行より後に来るので、上書きは必ず効きます。通常の Boss ではこの表は
+働かず、他のマップには一切影響しません。
+
+### どの終局 Boss に会うか
+
+終局 Boss は**最も多く献祭した Artifact（神器）**で決まります（wiki「神器与最终BOSS」）：
+
+| 最も多く献祭した神器 | 終局 Boss | 終局マップ |
+|---|---|---|
+| `HC Armor Plating` | Jim C. Bringer | Bringer's Desert → Bringer Mothership (P3) |
+| `Essence of Malice` / `Encrypted Archive` / `Sealed Megium` / `SparkGate Fragment` | Gilgamesh | Altar of Destruction → Ground Zero (P3) |
+
+終局マップの内部名が Boss 名なのも、そのマップが「その周回の終局 Boss の舞台」だからです。
+
+神器の生成は 3 通りに分かれます。**`Hall of Beginnings` は「生成しない」ではなく
+「必ず全部生成する」** ので注意してください：
+
+| 区分 | マップ | 神器 |
+|---|---|---|
+| 生成しない | `Beginning Lobby`、`The End of Time`、終局 4 マップ | なし |
+| **必ず全部生成** | `Hall of Beginnings` | 初回は必ずこのマップで、**すべての神器が出現** |
+| ランダム | それ以外の全マップ | 1 個だけのこともあれば全部のことも |
+
+そのため神器の集計は、次に誰と戦うかの目安にもなります。
+
+
 ---
 
 ## ワールド認識
@@ -528,7 +620,7 @@ VRChat output_log.txt
 
 ### 描画と拡縮
 
-メモリ DC は `MM_ANISOTROPIC` マッピングを使い、**460×620 の論理座標**を等比でウィンドウの
+メモリ DC は `MM_ANISOTROPIC` マッピングを使い、**460×658 の論理座標**を等比でウィンドウの
 ピクセルに拡大し、さらにシステムの DPI 係数を掛けます。したがってフォント、余白、ボタンは
 60%–200% のどの拡大率でも**同一のレイアウト**で、文字のずれが出ません。`BitBlt` の前に
 マッピングを `MM_TEXT` に戻し、転送元矩形が二重に拡縮されるのを防ぎます。
@@ -626,7 +718,6 @@ preview.exe <ログ> <拡大率%> <ログパネル有無 0/1> <出力.bmp> [先�
 | 実ログ再生 | 1 本 53834 行のログから **9359 イベント**を解析 |
 | 自動特定 | 引数なしで起動すると VRChat ディレクトリ内で mtime が最新の `output_log_*.txt` を追従 |
 | セッション切替 | 実行中に新しいログファイルが作られると自動で追従を切替 |
-| 死亡のデバウンス | 8 秒間に 34 行の死亡ログ → イベントログには **1 件**だけ記録（死亡回数は統計に含めない）|
 | インターバル中の木人 | インターバル中の 20 行以上の `Dealing 30`：周回の与ダメージはインターバル前後で**まったく変化しない**（実測 4,965 → 4,965）|
 | 全滅リセット | 実ログで、Boss が死なないままインターバルに入った場合 / 第 1 ステージ以外で `Hall of Beginnings` が出た場合のいずれも検出し、周回をゼロにして「FAILED」の履歴を 1 件残す |
 | Boss の初期ターゲット | `FlyLord` は開戦後 57 秒間 `ターゲット —` を表示し、前のステージの敵を借りない（旧版は `LavaSac → …` と表示していた）|

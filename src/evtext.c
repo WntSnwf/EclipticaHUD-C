@@ -46,9 +46,9 @@ void evtext_push(EvLog* ev, const Stats* st, const Event* e)
             evlog_push(ev, e->t, EVK_DAMAGE, TXT_EV_TAKEN_1, n1, atk);
         break;
     }
-    case EV_PLAYER_DEAD:
-        evlog_push(ev, e->t, EVK_DEATH, "%s", TXT_EV_DEATH);
-        break;
+    /* 死亡不写事件日志：一倒/二倒 + 开战复活一倒的机制让日志无法可靠判定生死
+     * （见 README「为什么没有死亡统计」）。EVK_DEATH 这个分类仍然保留在
+     * evlog.h 里，方便以后有可靠信号时再用。*/
     case EV_TOKEN_SPAWN:
         fmt_amount(n2, sizeof(n2), e->amount);
         evlog_push(ev, e->t, EVK_TOKEN, TXT_EV_TOKEN, n2);

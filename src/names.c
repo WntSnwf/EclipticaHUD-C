@@ -34,15 +34,36 @@ static const Map BOSSES[] = {
     { "OnyxPilot",       "Onyx Pilot" },
 };
 
+/* 阶段/地图名映射。
+ * 依据：EclipticaLocalWiki.md 的「Maps/地图」+ 真实日志里出现过的内部名。
+ * **只收实测过的条目**：日志里真的出现过这些内部名，才写进表。
+ * 未命中的名字原样显示（映射只做精确匹配，不会串味）。
+ *
+ * 注意内部名与显示名可能毫无关系（Bringer -> Bringer's Desert、
+ * CrystalMines -> Halram Mines），也可能带空格（Hall of Beginnings），
+ * 所以不能靠"把显示名的空格去掉"来生成内部名。
+ *
+ * 终局地图的内部名就是 **Boss 名**，一个内部名对应两张图：
+ *   Stage_Gilgamesh -> Altar of Destruction（P1/P2）或 Ground Zero（P3）
+ *   Stage_Bringer   -> Bringer's Desert（P1/P2）或 Bringer Mothership（P3）
+ * 单看阶段行分不出是哪一个，所以这里只写**前两形态的默认图**，
+ * 三阶段那张由 stage_from_final_boss() 按 Boss 形态覆盖（Boss 行总在阶段行之后）。*/
 static const Map STAGES[] = {
-    { "BalboaRuins", "Balboa Ruins" },
-    { "Bringer",     "Bringer's Desert" },
-    { "CopiedCity",  "Copied City" },
-    { "GMBigcity",   "GM_BigCity" },
-    { "GMFuncFlat",  "GM_Func_Flat" },
-    { "LostElysia",  "Lost Elysia" },
-    { "ProtoColony", "Proto Colony" },
-    { "VRCHub",      "VRChat Hub" },
+    { "BalboaRuins",        "Balboa Ruins" },           /* 实测 */
+    { "Bringer",            "Bringer's Desert" },       /* 终局地图默认值，P3 由 Boss 反推覆盖 */
+    { "CalamityPalaceV2",   "Calamity Palace 2" },      /* 实测；V2 就是 2 */
+    { "CopiedCity",         "Copied City" },            /* 实测 */
+    { "CrystalMines",       "Halram Mines" },           /* 实测；内部名与显示名完全不同 */
+    { "Gilgamesh",          "Altar of Destruction" },   /* 终局地图默认值，P3 由 Boss 反推覆盖 */
+    { "GMBigcity",          "GM_BigCity" },             /* 实测 */
+    { "GMFuncFlat",         "GM_Func_Flat" },           /* 实测 */
+    { "GMFuncFlat3",        "GM_Func_Flat_3" },         /* 实测 */
+    { "Hall of Beginnings", "Hall of Beginnings" },     /* 实测；内部名带空格（见 vlog.c 演示日志）*/
+    { "Hallow",             "Hallow" },                 /* 实测 */
+    { "LostElysia",         "Lost Elysia" },            /* 实测 */
+    { "OuterHeven",         "Outer Heaven" },           /* 实测；内部名拼写少个 a */
+    { "ProtoColony",        "Proto Colony" },           /* 实测 */
+    { "VRCHub",             "VRChat Hub" },             /* 实测 */
 };
 
 static const char* lookup(const Map* m, int n, const char* in)
@@ -61,6 +82,25 @@ const char* boss_display(const char* internal)
 const char* stage_display(const char* internal)
 {
     return lookup(STAGES, (int)(sizeof(STAGES) / sizeof(STAGES[0])), internal);
+}
+
+/* 终局 Boss 专属地图 —— 靠 Boss 本身 + 形态号反推，不依赖阶段内部名。
+ * 依据 EclipticaLocalWiki.md 的「Maps/地图」：
+ *   Gilgamesh      : 前两形态在 Altar of Destruction，三阶段换到 Ground Zero
+ *   Jim C. Bringer : 前两形态在 Bringer's Desert，三阶段换到 Bringer Mothership
+ * 返回 NULL 表示"这不是终局 Boss"，调用方保持原样。*/
+const char* stage_from_final_boss(const char* boss_internal)
+{
+    char base[64];
+    if (!boss_internal || !*boss_internal) return NULL;
+    boss_base(boss_internal, base, sizeof(base));
+    int phase = boss_phase_no(boss_internal);
+
+    if (!strcmp(base, "Gilgamesh"))
+        return phase >= 3 ? "Ground Zero" : "Altar of Destruction";
+    if (!strcmp(base, "JimBringer"))
+        return phase >= 3 ? "Bringer Mothership" : "Bringer's Desert";
+    return NULL;
 }
 
 void boss_label(const char* internal, char* out, int cap)

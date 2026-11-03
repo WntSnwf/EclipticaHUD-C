@@ -145,7 +145,7 @@ Jacked O' Lantern
 Physical: 1x
 Fire: 1.25x
 Frost: 0.75x
-Electric: 0.75x
+Electric: 0.5x
 Luminous: 0.75x
 Shadow: 1.25x
 Poison: 1.25x

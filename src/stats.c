@@ -23,6 +23,8 @@ static void unit_push(Sample* buf, int* head, int* n, double t, double v)
 static void unit_add_dealt(Unit* u, double t, double v)
 {
     u->a.dmg += v;
+    /* 「最强一击」：单次造成的最高伤害。只增不减，随 unit_start 归零 */
+    if (v > u->a.max_dealt) u->a.max_dealt = v;
     unit_push(u->dealt, &u->dh, &u->dn, t, v);
 }
 
@@ -147,9 +149,6 @@ static void open_run(Stats* s, double t)
     s->target_obj[0] = 0;
     s->target_since = 0;
     s->n_targets = 0;
-    s->last_death_t = 0;
-    s->alive_t = 0;
-    s->n_bosses = 0;
     s->n_bosses = 0;
     s->view_run = -1;
     s->view_fight = -1;
@@ -219,12 +218,6 @@ static const TargetSlot* target_find_const(const Stats* s, const char* obj)
         if (!best || s->targets[i].t > best->t) best = &s->targets[i];
     }
     return best;
-}
-
-/* 记录一次"还活着"的证据（攻击 / 受伤 / 换阶段 / 开 Boss 战 / 出现印记）*/
-static void mark_alive(Stats* s, double t)
-{
-    if (t > s->alive_t) s->alive_t = t;
 }
 
 static void open_stage(Stats* s, const char* name, double progress, const char* cls, double t)
@@ -365,6 +358,20 @@ static void ensure_run(Stats* s, double t)
     if (!s->world[0]) copy_str(s->world, sizeof(s->world), "Ecliptica");
 }
 
+/* 终局 Boss 的地图靠 Boss + 形态反推（见 names.h）：
+ *   Gilgamesh 前两形态 -> Altar of Destruction，三阶段 -> Ground Zero
+ *   Jim C. Bringer 同理 -> Bringer's Desert / Bringer Mothership
+ * 只有真的是终局 Boss 才覆盖，其它地图完全不受影响。
+ * 必须在"首次开战"和"同一 Boss 进下一形态"两处都调用 ——
+ * 后者是续战，会提前 return。*/
+static void apply_final_boss_map(Stats* s, const char* boss)
+{
+    const char* map = stage_from_final_boss(boss);
+    if (!map) return;
+    copy_str(s->stage_disp, sizeof(s->stage_disp), map);
+    copy_str(s->cur_stage.disp, sizeof(s->cur_stage.disp), map);
+}
+
 /* 事件是否被采纳（false = 噪声，不必写进事件日志） */
 bool stats_on_event(Stats* s, const Event* e)
 {
@@ -407,7 +414,6 @@ bool stats_on_event(Stats* s, const Event* e)
 
     case EV_STAGE: {
         ensure_run(s, t);
-        mark_alive(s, t);
         bool same = s->in_stage && !strcmp(s->stage, e->name);
         /* 已经打过至少一个阶段，又回到初始大厅 = 团灭重开。
          * 必须排除"同一条阶段行重复上报"（日志里很常见），否则回声也会被当成团灭。*/
@@ -426,7 +432,22 @@ bool stats_on_event(Stats* s, const Event* e)
                 s->pending_tokens = 0;
             }
         }
-        if (e->cls[0]) copy_str(s->cls, sizeof(s->cls), e->cls);
+        if (e->cls[0]) {
+            /* 职业变更就重置**最高 DPS**。
+             * 不同职业的血量与定位完全不同（例：Spellhammer 是 150 血的坦克型，
+             * Thaumaturge 是 100 血、可治疗的辅助型），两者的 DPS 根本不在一个区间，
+             * 跨职业取"最高"没有可比性。本阶段的峰值本来就随换阶段清零，
+             * 这里主要清掉的是**本局**（以及进行中的 Boss 战）的峰值。*/
+            if (s->cls[0] && strcmp(s->cls, e->cls) != 0) {
+                s->cur_run.peak_dps = 0;
+                s->cur_fight.peak_dps = 0;
+                /* 「最强一击」同理：坦克型和辅助型的单发伤害不是一个量级 */
+                s->run_u.a.max_dealt = 0;
+                s->stage_u.a.max_dealt = 0;
+                s->fight_u.a.max_dealt = 0;
+            }
+            copy_str(s->cls, sizeof(s->cls), e->cls);
+        }
         s->intermission = false;
         s->in_world = true;
         break;
@@ -441,7 +462,6 @@ bool stats_on_event(Stats* s, const Event* e)
 
     case EV_BOSS_FIGHT: {
         ensure_run(s, t);
-        mark_alive(s, t);
         if (s->in_fight) {
             char base_new[64], base_cur[64];
             boss_base(e->name, base_new, sizeof(base_new));
@@ -453,6 +473,7 @@ bool stats_on_event(Stats* s, const Event* e)
                 /* 同一 Boss 的下一形态：续战，合并进同一场记录 */
                 fight_set_name(&s->cur_fight, e->name);
                 s->stage_boss_seen = true;
+                apply_final_boss_map(s, e->name);      /* 三阶段可能换地图 */
                 return false;
             }
             seal_fight(s, t, false, false);
@@ -461,6 +482,7 @@ bool stats_on_event(Stats* s, const Event* e)
         remember_boss(s, e->name);
         s->stage_boss_seen = true;
         s->intermission = false;
+        apply_final_boss_map(s, e->name);      /* 终局 Boss 反推地图 */
         break;
     }
 
@@ -500,7 +522,6 @@ bool stats_on_event(Stats* s, const Event* e)
 
     case EV_DEALT:
         ensure_run(s, t);
-        mark_alive(s, t);
         /* 间歇期里唯一能打的是练习木桩（实测固定每次 30 点，刷屏式输出 20 多次）。
          * 那不是战斗伤害，三级统计都不该收 —— 否则本局伤害会凭空多出几百点。*/
         if (s->intermission) return false;
@@ -511,7 +532,8 @@ bool stats_on_event(Stats* s, const Event* e)
 
     case EV_DAMAGE_TAKEN: {
         ensure_run(s, t);
-        mark_alive(s, t);
+        /* 受伤是唯一可靠的"复活证据"：人死了不会再受伤，
+         * 而输出伤害不行 —— 实测死后自己的 DOT 还在跳（见 EV_PLAYER_SPECTATE）。*/
         unit_add_taken(&s->run_u, t, e->amount);
         if (s->in_fight) unit_add_taken(&s->fight_u, t, e->amount);
         else if (s->in_stage) unit_add_taken(&s->stage_u, t, e->amount);
@@ -523,36 +545,14 @@ bool stats_on_event(Stats* s, const Event* e)
         break;
     }
 
-    case EV_PLAYER_DEAD: {
-        /* 死亡次数**不再计入任何统计**（已按需求移除），但事件日志仍要记一条，
-         * 而且一次死亡常常连刷几十行 "Local controller dead"（实测 8 秒内 34 行），
-         * 中间还会混入 "ECLIPTICA saving SESSION ID" 之类的无关行。
-         * 所以这里的去重仍然必要：必须"上次死亡之后又出现了活着的证据"
-         * 才允许再记一条，再加一个静默期兜底，否则日志会被刷屏。
-         * 返回值即"是否采纳"，调用方据此决定要不要写进事件日志。*/
-        if (!s->in_run) return false;
-        const double DEATH_HOLD = 3.0;
-        bool prev = s->last_death_t > 0;
-        bool alive_again = !prev || (s->alive_t > s->last_death_t);
-        if (!alive_again) return false;
-        if (prev && t - s->last_death_t < DEATH_HOLD) return false;
-
-        s->last_death_t = t;
-        s->alive_t = 0;                       /* 需要新的存活证据才能再记一次 */
-
-        /* 计数：阶段 / 本局 / 本场都要加。
-         * 以前只写事件日志、不计数，而事件日志是 512 条环形缓冲——
-         * 实测一局有 2.4 万条事件，死亡那行几十秒就被挤出去了，
-         * 玩家根本看不到自己死过。所以必须有这个持久计数。*/
-        s->stage_u.a.deaths++;
-        s->run_u.a.deaths++;
-        if (s->in_fight) s->fight_u.a.deaths++;
-        break;
-    }
+    /* 死亡**不做统计也不做检测**（v0.6 决定，理由见 README「为什么没有死亡统计」）：
+     * ECLIPTICA 的死亡是"一倒 / 二倒"两段式，而且每次 stage 与（非终局 Boss 的）P1 开战时
+     * 会复活一倒玩家、把二倒玩家降为一倒 —— 光凭日志无法可靠区分这几种状态，
+     * 继续推断只会给出错误数字。日志里那两行（`Local controller dead, switching off.`
+     * 与 `new specatator`）依旧会被解析器忽略。*/
 
     case EV_TOKEN_SPAWN:
         ensure_run(s, t);
-        mark_alive(s, t);
         s->pending_tokens++;
         break;
 

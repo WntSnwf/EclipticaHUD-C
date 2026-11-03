@@ -56,15 +56,57 @@ VRChat 世界 **Ecliptica** 的战斗统计覆盖层：跟随 VRChat 日志，�
 | **本局 Run** | 一次进入 Ecliptica 世界到离开 |
 | **本场 Fight** | 一次 Boss 战（同一 Boss 的 `Phase2/Phase3` 视为续战并合并）|
 
-每级都给出：伤害、最高 DPS、DPS、承伤、受击次数、最大受击、平均受击、承伤/秒、阵亡、印记。
+每级都给出：伤害、最高 DPS、最强一击、DPS、承伤、受击次数、最大受击、平均受击、承伤/秒、印记。
 DPS 使用可切换的滑动窗口：**3 / 5 / 10 / 30 / 60 / 120 秒**。
 
 **最高 DPS** 是"到目前为止出现过的峰值"（由 100 ms 定时器持续采样滑窗 DPS 得出，只增不减），
 按阶段还是按本局统计由 `config.ini` 的 `peak_scope` 决定（默认按本局）；对应那一列有值，另外两列显示 `–`。
 
-> 「阵亡」曾从统计里移除过，但事件日志是 512 条环形缓冲——实测一局产生约 2.4 万条事件，
-> 死亡那一行几十秒就被挤出去了，玩家实际上看不到自己死过。所以死亡重新计入统计：
-> 阶段 / 本局 / 本场三级各自累计，同一个人的连刷死亡行只算一次（见下）。
+**职业变更时会清零。** 不同职业的血量与定位完全不同（例：`Spellhammer` 是 150 血的坦克型，
+`Thaumaturge` 是 100 血、可以治疗的辅助型），两者的 DPS 根本不在一个区间，
+跨职业取"最高"没有可比性。所以日志里的 `as class:` 一变，本局（以及进行中的 Boss 战）
+的最高 DPS 就归零重算，从换职业那一刻重新累积。
+
+> **死亡既不计入统计，也不写事件日志。** 原因见下。
+
+### 为什么没有死亡统计
+
+ECLIPTICA 的死亡是**两段式**，而且会被战斗开始重置：
+
+- **一倒 = 获得「倒地 / Dead」效果**：无法行动，但**仍然可以被救起**。
+  被救起一次之后，玩家会获得**「致命诅咒 / Mortal Curse」**效果。
+- **二倒 = 带着诅咒再次倒地**：因为 Mortal Curse，**无法被正常救起**，只能进入观战。
+  唯一的例外是 `Thaumaturge` 的升级 **`Thaumaturge: Everlife`（奇迹师：永生）**：
+  消耗 25 点本回合最大生命 + 100% 生命能量（LIFE ENERGY，Thaumaturge 攻击时积攒），
+  即可救起带 Mortal Curse 的玩家（最大生命不足 25 时用不出来），
+  施救者随后获得 60 层 `Breached`（破防）与 `Weakened`（虚弱）。
+- **战斗开始时的复活机制**：每次 stage 开始、以及 Boss 战开始时，场上「倒地」的玩家会被救起，
+  二倒玩家则回退为一倒。
+  **普通 Boss 只有 P1 开始有**这个机制；**终局 Boss（`Jim C. Bringer`、`Gilgamesh`）每个阶段开始都有**。
+
+这意味着"玩家现在处于什么状态"无法只从日志推断：同一行 `Local controller dead` 可能是一次一倒
+（几秒后被救起），也可能是二倒；而 `new specatator` 更是**根本不专属于死亡**。
+
+实测 `output_log_2026-10-28_08-29-41.txt`（9.7 万行，一天）：
+
+| 行 | 出现次数 |
+|---|---|
+| `Local controller dead, switching off.` | **1** |
+| `new specatator` | **44** |
+
+44 次观战里绝大多数是"中途进场被迫观战"和"观战里切换观察对象"，真正对应死亡的极少。
+之前几版尝试过的判据（时间窗口、以受伤作为复活证据、按观战次数去重）在这种机制下
+都会漏计或重计 —— 例如"一倒"被救起后完全没有日志痕迹，而"二倒"要等到玩家切换观战对象才出现。
+
+**所以程序不猜。** 这两行现在和其他普通日志一样被忽略：
+
+- 面板里没有「死亡」这一栏
+- 事件日志里也不会出现「你已阵亡」
+- 回放摘要不输出任何死亡计数
+
+如果只是想知道"这一局我输出多少"，现有数据已经够了；要判断"这一局我死了几次"，
+目前只能靠玩家自己记。
+### 多形态 Boss
 
 多形态 Boss（例如 `JimBringer → JimBringerPhase2 → JimBringerPhase3`）有两个坑，
 程序都做了处理：
@@ -86,7 +128,7 @@ DPS 使用可切换的滑动窗口：**3 / 5 / 10 / 30 / 60 / 120 秒**。
 - 本局汇总显示累计切换次数
 - **Boss 战中只认这只 Boss 自己的目标**；日志里还没有它的 `ownership` 时显示
   `目标 —`，绝不拿别的敌人的目标冒充（见下方说明）
-- 不在 Boss 战时，汇报最近一次切换并带上对象名（`Ice Squid → zukkiii 00:12`）
+- 不在 Boss 战时，汇报最近一次切换并带上对象名（`Ice Squid → Name2 00:12`）
 - 事件日志记录 `目标切换 <对象> → <玩家>`
 
 > **Boss 战的"最初目标"从哪来。** 目标只能来自 `ownership` 行。实测各 Boss
@@ -401,20 +443,15 @@ world_names=
 | 造成伤害 | `Dealing 74 STRIKE damage` / `Dealing 38 NON-STRIKE damage` |
 | 受到伤害 | `damage has been taken: 43, from source: (Peltapod) attack_Slam` |
 | 目标（仇恨）切换 | `ownership of Amaziah transferred to OtherPlayer` |
-| 死亡 | `Local controller dead, switching off.`（只写事件日志，不计入统计）|
+| 死亡（**故意忽略**）| `Local controller dead, switching off.` / `new specatator` —— 不产生任何事件 |
 | 印记 | `spawn token, True, 55` + `ECLIPTICA saving SESSION ID 11508` |
 | 敌人工池 | `Initializing Enemy POOL ID17 as ENEMY ID 87` / `Retiring Enemy POOL ID19` |
 
 ### 八个容易踩的坑
 
-**死亡连刷。** 一次死亡会在日志里连刷几十行 `Local controller dead, switching off.`
-（实测 8 秒内 34 行），中间还会混进 `ECLIPTICA saving SESSION ID` 之类的无关行。
-程序要求「上次死亡之后必须再次出现活着的证据（造成伤害 / 受到伤害 / 换阶段 / 开 Boss 战 /
-出现印记）」，并叠加 3 秒静默期。
-
-> 死亡次数**已不再计入统计**（面板里没有「死亡」这一栏）。这条去重逻辑现在只为
-> **事件日志**服务：一次死亡只写一条「你已阵亡」，否则日志会被连刷的几十行塞满。
-
+**死亡行故意不解析。** `Local controller dead, switching off.` 与 `new specatator` 两行
+现在被当作普通日志忽略 —— 一倒 / 二倒 + 每次开战复活一倒的机制让日志无法可靠判定生死
+（理由与实测数据见 [为什么没有死亡统计](#为什么没有死亡统计)）。
 **多形态 Boss 的击杀行会迟到。** 实测 `JimBringerPhase3` 在 19:12:21 开战，
 `Boss JimBringerPhase2 dead` 直到 19:12:22 才出现。程序结算击杀时要求对象名完全一致
 或形态号一致，否则这一行会把刚开始的三阶段误判为结束（界面回到「当前没有 Boss 战」）。
@@ -458,6 +495,62 @@ Boss：`FlyLord → Beelzebub`、`AntKing → Khepri`、`ManalyteAncient → Aba
 进度阶段：`0.43 → Antumbral`；
 伤害来源：`(Khepri) attack_Claws2 → Khepri · Claws 2`、`NukeHitbox (BIG) → Nuke (big)`。
 
+### 地图名（阶段名）怎么来的
+
+日志里的地图长这样：`ECLIPTICA - now in stage: Stage_CrystalMines on phase: 0.36 …`。
+`Stage_` 前缀会被剥掉，剩下的内部名按一张**只收实测条目**的表翻译：
+
+| 内部名 | 显示名 | 备注 |
+|---|---|---|
+| `CrystalMines` | Halram Mines | 内部名与显示名**毫无关系** |
+| `CalamityPalaceV2` | Calamity Palace 2 | `V2` 就是 2 |
+| `GMFuncFlat3` | GM_Func_Flat_3 | |
+| `OuterHeven` | Outer Heaven | 内部名**拼写少一个 a** |
+| `Hall of Beginnings` | Hall of Beginnings | 内部名**带空格** |
+| `Gilgamesh` | Altar of Destruction | 终局地图，内部名**就是 Boss 名**；三阶段另有同名地图，见下 |
+| `Bringer` | Bringer's Desert | 同上 |
+| `BalboaRuins` / `CopiedCity` / `GMBigcity` / `GMFuncFlat` / `LostElysia` / `ProtoColony` / `VRCHub` | … | |
+
+两条设计原则：
+
+1. **不猜。** 只有真实日志里出现过、且对应关系确认过的内部名才写进表。没收录的名字
+   **原样显示**（例如直接显示 `SomeNewMap`）——显示原始内部名，好过显示一个可能是错的猜测。
+   映射只做精确匹配，不存在"把 A 地图显示成 B 地图"的可能。
+2. **一张内部名对应两张图的，靠 Boss 形态修正。** 终局地图的内部名就是 Boss 名，
+   所以 `Stage_Gilgamesh` 既可能是 Altar of Destruction、也可能是 Ground Zero，
+   `Stage_Bringer` 同理。程序先按前两形态的默认图显示，等 Boss 行到达后再按形态覆盖：
+
+| 阶段内部名 | Boss 形态 | 面板显示 |
+|---|---|---|
+| `Stage_Gilgamesh` | `Gilgamesh` / `GilgameshPhase2` | Altar of Destruction |
+| `Stage_Gilgamesh` | `GilgameshPhase3` | **Ground Zero** |
+| `Stage_Bringer` | `JimBringer` / `JimBringerPhase2` | Bringer's Desert |
+| `Stage_Bringer` | `JimBringerPhase3` | **Bringer Mothership** |
+
+Boss 行永远在阶段行之后，所以覆盖一定生效；普通 Boss 触发不了这张表，其它地图完全不受影响。
+
+### 会打到哪个终局 Boss
+
+终局 Boss 由**献祭数量最多的神器**决定（wiki「神器与最终BOSS」）：
+
+| 献祭最多的神器 | 终局 Boss | 终局地图 |
+|---|---|---|
+| `HC Armor Plating` | Jim C. Bringer | Bringer's Desert → Bringer Mothership (P3) |
+| `Essence of Malice` / `Encrypted Archive` / `Sealed Megium` / `SparkGate Fragment` | Gilgamesh | Altar of Destruction → Ground Zero (P3) |
+
+这也解释了为什么终局地图的内部名是 Boss 名：那两张图本来就是"这一局的终局 Boss 的主场"。
+
+神器的生成规则分三类，注意 **`Hall of Beginnings` 是"必定生成全部"，不是"不生成"**：
+
+| 类别 | 地图 | 神器生成 |
+|---|---|---|
+| 不生成 | `Beginning Lobby`、`The End of Time`、四张终局地图 | 无 |
+| **必定全部生成** | `Hall of Beginnings` | 第一局固定在此图，**所有神器都会出现** |
+| 随机 | 其余所有地图 | 可能只有 1 个，也可能全部生成 |
+
+所以只看神器数量也能大致判断接下来会遇上谁。
+
+
 ---
 
 ## 世界识别
@@ -497,7 +590,7 @@ VRChat output_log.txt
 
 ### 渲染与缩放
 
-内存 DC 使用 `MM_ANISOTROPIC` 映射，把 **460×620 的逻辑坐标**等比放大到窗口像素，
+内存 DC 使用 `MM_ANISOTROPIC` 映射，把 **460×658 的逻辑坐标**等比放大到窗口像素，
 再乘系统 DPI 系数。因此字体、间距、按钮在 60%–200% 任意缩放下都是**同一套版式**，
 不会出现文字错位；`BitBlt` 前把映射复位为 `MM_TEXT`，避免源矩形被二次缩放。
 
@@ -591,7 +684,6 @@ preview.exe <日志> <缩放%> <是否带日志面板 0/1> <输出.bmp> [只回�
 | 真实日志回放 | 单份 53834 行日志解析出 **9359 个事件** |
 | 自动定位 | 无参数启动即跟随 VRChat 目录下 mtime 最新的 `output_log_*.txt` |
 | 会话轮换 | 运行中新建更新的日志文件后自动切换跟随 |
-| 死亡去抖 | 8 秒内 34 行死亡日志 → 事件日志只写 **1 条**（死亡次数已不计入统计）|
 | 间歇期木桩 | 间歇期内 20+ 行 `Dealing 30`：本局伤害在间歇期前后**完全不变**（实测 4,965 → 4,965）|
 | 团灭重置 | 实测日志中 Boss 未死即进间歇期 / 非第一阶段出现 `Hall of Beginnings` 均能识别，本局归零并留下一条「失败」历史 |
 | Boss 初始目标 | `FlyLord` 开战后 57 秒内显示 `目标 —`，不再借用上一阶段的敌人（旧版会显示 `LavaSac → …`）|

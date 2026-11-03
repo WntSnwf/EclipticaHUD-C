@@ -38,7 +38,9 @@ typedef enum {
     EV_DEALT,            /* Dealing n STRIKE/NON-STRIKE damage */
     EV_DAMAGE_TAKEN,     /* damage has been taken: n, from source: s */
     EV_OWNERSHIP,        /* ownership of <object> transferred to <player> */
-    EV_PLAYER_DEAD,      /* Local controller dead, switching off. */
+    /* 死亡不做检测：ECLIPTICA 是"一倒 / 二倒"两段式，且每次 stage 与（非终局 Boss 的）
+     * P1 开战都会复活一倒、把二倒降为一倒，光凭日志无法可靠区分（见 README）。
+     * 因此 `Local controller dead` 与 `new specatator` 两行现在只是被忽略的普通行。*/
     EV_TOKEN_SPAWN,      /* spawn token, True/False, n */
     EV_SESSION_SAVE,     /* ECLIPTICA saving SESSION ID n */
     EV_ENEMY_SPAWN,      /* Initializing Enemy POOL IDn as ENEMY ID k */

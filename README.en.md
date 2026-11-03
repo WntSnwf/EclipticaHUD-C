@@ -56,11 +56,51 @@ modification, no OSC required**. Implemented in pure C + Win32/GDI, linked only 
 | **Run** | From entering the Ecliptica world until leaving it |
 | **Fight** | A single boss fight (`Phase2`/`Phase3` of the same boss count as a continuation and are merged) |
 
-Each tier reports: Damage, DPS, Taken, hit count, Max Hit, Avg Hit, Taken/s and Tokens.
+Each tier reports: Damage, Peak DPS, Best Hit, DPS, Taken, hit count, Max Hit, Avg Hit, Taken/s
+and Tokens. **Best Hit** is the highest single damage instance you dealt; it resets when your
+class changes, just like Peak DPS.
 DPS uses a switchable sliding window: **3 / 5 / 10 / 30 / 60 / 120 seconds**.
-(Earlier versions also had a "Deaths" row; it was removed on request — a death now leaves
-only one entry in the event log.)
+> **Deaths are neither counted nor logged.** See
+> [Why there is no death statistic](#why-there-is-no-death-statistic).
 
+### Why there is no death statistic
+
+ECLIPTICA's death is a **two-stage** mechanic, and combat start resets it:
+
+- **First down = you get the "Dead" (knocked down) effect**: you cannot act, but you **can still be
+  revived**. After the first revive you gain the **"Mortal Curse"** effect.
+- **Second down = going down again while cursed**: because of Mortal Curse you **cannot normally be
+  revived** and you end up spectating. The one exception is the `Thaumaturge` upgrade
+  **`Thaumaturge: Everlife`**: it spends 25 of the player's current-turn max HP plus 100% LIFE
+  ENERGY (built up by Thaumaturge attacks) to revive a player carrying Mortal Curse (it cannot be
+  used once max HP is below 25), and the reviver then gains 60 stacks of `Breached` and `Weakened`.
+- **Revive on combat start**: at every stage start and every boss-fight start, players who are
+  "Dead" are revived and second-down players are rolled back to first down.
+  **Normal bosses only do this at P1**; the **final bosses (`Jim C. Bringer`, `Gilgamesh`) do it at
+  the start of every phase**.
+
+So "what state is the player in" cannot be inferred from the log alone: the same
+`Local controller dead` line may be a first down (revived seconds later) or a second down, and
+`new specatator` is **not specific to death at all**.
+
+Measured on `output_log_2026-10-28_08-29-41.txt` (97k lines, one day):
+
+| Line | Occurrences |
+|---|---|
+| `Local controller dead, switching off.` | **1** |
+| `new specatator` | **44** |
+
+Almost all of those 44 are "joined mid-run and was forced to spectate" and "switched the spectate
+target"; only a few correspond to deaths. Every heuristic tried earlier (time windows, using
+damage-taken as revival evidence, de-duplicating by spectator count) under- or over-counts under
+this mechanic — a first down that gets revived leaves no trace at all, while a second down only
+shows up when the player switches spectate target.
+
+**So the program does not guess.** Both lines are ignored like any other log line:
+
+- there is no Death row in the panel
+- "You died" never appears in the event log
+- the replay summary prints no death counters
 Multi-form bosses (for example `JimBringer → JimBringerPhase2 → JimBringerPhase3`) come with
 two traps, and the program handles both:
 
@@ -87,7 +127,7 @@ and over is not counted twice (a `(Clone)` suffix is merged into the same object
   `ownership` for it yet the panel shows `Target —` and never substitutes another enemy's
   target (see below)
 - Outside a boss fight it reports the most recent switch together with the object name
-  (`Ice Squid → zukkiii 00:12`)
+  (`Ice Squid → Name2 00:12`)
 - The event log records `Target switch <object> → <player>`
 
 > **Where a boss fight's "initial target" comes from.** A target can only come from an
@@ -400,22 +440,16 @@ is taken from a real `output_log`:
 | Damage dealt | `Dealing 74 STRIKE damage` / `Dealing 38 NON-STRIKE damage` |
 | Damage taken | `damage has been taken: 43, from source: (Peltapod) attack_Slam` |
 | Target (aggro) switch | `ownership of Amaziah transferred to OtherPlayer` |
-| Death | `Local controller dead, switching off.` (written to the event log only, never counted in the statistics) |
+| Death (**ignored on purpose**) | `Local controller dead, switching off.` / `new specatator` — produces no event |
 | Token | `spawn token, True, 55` + `ECLIPTICA saving SESSION ID 11508` |
 | Enemy pool | `Initializing Enemy POOL ID17 as ENEMY ID 87` / `Retiring Enemy POOL ID19` |
 
 ### Eight easy traps
 
-**Death spam.** A single death floods the log with dozens of `Local controller dead,
-switching off.` lines (34 lines within 8 seconds, measured), with unrelated lines such as
-`ECLIPTICA saving SESSION ID` mixed in. The program requires "proof of being alive again
-after the previous death (damage dealt / damage taken / stage change / boss fight started /
-token spawned)" and adds a 3-second quiet period on top.
-
-> The death count **is no longer part of the statistics** (there is no Death row in the
-> panel). This de-duplication now only serves the **event log**: one death writes exactly one
-> "You died" entry, otherwise the log would be buried under those dozens of repeated lines.
-
+**Death lines are deliberately not parsed.** Both `Local controller dead, switching off.` and
+`new specatator` are now ignored like any other log line — the first-down / second-down mechanic
+plus the revive-on-combat-start rule make death undecidable from the log (reasoning and measured
+numbers in [Why there is no death statistic](#why-there-is-no-death-statistic)).
 **The kill line for multi-form bosses arrives late.** Measured: `JimBringerPhase3` started at
 19:12:21 and `Boss JimBringerPhase2 dead` did not appear until 19:12:22. When settling a kill
 the program requires an exactly matching object name or a matching form number, otherwise
@@ -472,6 +506,67 @@ stages: `ProtoColony → Proto Colony`, `VRCHub → VRChat Hub`;
 progress stages: `0.43 → Antumbral`;
 damage sources: `(Khepri) attack_Claws2 → Khepri · Claws 2`, `NukeHitbox (BIG) → Nuke (big)`.
 
+### Where map (stage) names come from
+
+A map appears in the log as `ECLIPTICA - now in stage: Stage_CrystalMines on phase: 0.36 …`.
+The `Stage_` prefix is stripped and the remaining internal name is translated by a table that
+**only contains confirmed entries**:
+
+| Internal name | Display name | Note |
+|---|---|---|
+| `CrystalMines` | Halram Mines | the internal name has **nothing to do** with the display name |
+| `CalamityPalaceV2` | Calamity Palace 2 | `V2` really means 2 |
+| `GMFuncFlat3` | GM_Func_Flat_3 | |
+| `OuterHeven` | Outer Heaven | the internal name is **missing an "a"** |
+| `Hall of Beginnings` | Hall of Beginnings | the internal name **contains spaces** |
+| `Gilgamesh` | Altar of Destruction | final-boss map; the internal name **is the boss name** (see below) |
+| `Bringer` | Bringer's Desert | same |
+| `BalboaRuins` / `CopiedCity` / `GMBigcity` / `GMFuncFlat` / `LostElysia` / `ProtoColony` / `VRCHub` | … | |
+
+Two design rules:
+
+1. **No guessing.** Only internal names that actually appeared in real logs, with a confirmed
+   correspondence, are in the table. Anything else is shown **as-is** (e.g. `SomeNewMap`) —
+   showing the raw internal name is better than showing a guess that may be wrong. Matching is
+   exact, so a map can never be displayed as a different map.
+2. **When one internal name covers two maps, the boss phase decides.** The final-boss maps use the
+   boss name as their internal name, so `Stage_Gilgamesh` may be Altar of Destruction or Ground
+   Zero, and `Stage_Bringer` likewise. The program first shows the first-two-phase map and corrects
+   it once the boss line arrives:
+
+| Stage internal name | Boss phase | Shown as |
+|---|---|---|
+| `Stage_Gilgamesh` | `Gilgamesh` / `GilgameshPhase2` | Altar of Destruction |
+| `Stage_Gilgamesh` | `GilgameshPhase3` | **Ground Zero** |
+| `Stage_Bringer` | `JimBringer` / `JimBringerPhase2` | Bringer's Desert |
+| `Stage_Bringer` | `JimBringerPhase3` | **Bringer Mothership** |
+
+The boss line always arrives after the stage line, so the override always applies. Normal bosses
+never trigger this table, and other maps are untouched.
+
+### Which final boss you will meet
+
+The final boss is decided by **the artifact you sacrificed the most of** (wiki "神器与最终BOSS"):
+
+| Most-sacrificed artifact | Final boss | Final map |
+|---|---|---|
+| `HC Armor Plating` | Jim C. Bringer | Bringer's Desert → Bringer Mothership (P3) |
+| `Essence of Malice` / `Encrypted Archive` / `Sealed Megium` / `SparkGate Fragment` | Gilgamesh | Altar of Destruction → Ground Zero (P3) |
+
+That is also why the final-boss maps are named after the boss: those two maps are that run's final
+arena.
+
+Artifact generation falls into three cases — note that **`Hall of Beginnings` generates *all* of
+them, it does not generate none**:
+
+| Category | Maps | Artifacts |
+|---|---|---|
+| None | `Beginning Lobby`, `The End of Time`, the four final maps | no artifacts |
+| **All of them** | `Hall of Beginnings` | the first run always starts here and **every artifact appears** |
+| Random | every other map | anywhere from one artifact to all of them |
+
+So the artifact tally is also a decent hint of who you are about to face.
+
 ---
 
 ## World detection
@@ -514,7 +609,7 @@ VRChat output_log.txt
 
 ### Rendering and scaling
 
-The memory DC uses the `MM_ANISOTROPIC` mapping to scale the **460×620 logical coordinate
+The memory DC uses the `MM_ANISOTROPIC` mapping to scale the **460×658 logical coordinate
 space** uniformly to window pixels, then multiplies by the system DPI factor. Fonts, spacing
 and buttons therefore keep **one single layout** at any scale from 60% to 200%, with no
 misplaced text; before `BitBlt` the mapping is reset to `MM_TEXT` so the source rectangle is
@@ -611,7 +706,6 @@ layout without a monitor** and compare versions directly while changing the inte
 | Real log replay | a single 53834-line log parses into **9359 events** |
 | Auto-discovery | started with no arguments it follows the `output_log_*.txt` with the newest mtime in the VRChat directory |
 | Session rotation | after a newer log file is created while running it switches to following it automatically |
-| Death de-bounce | 34 death lines within 8 seconds → the event log gets **1 entry** (deaths are no longer counted in the statistics) |
 | Intermission dummy | 20+ `Dealing 30` lines during an intermission: run damage is **completely unchanged** across it (measured 4,965 → 4,965) |
 | Wipe reset | in real logs both "an intermission while the boss is still alive" and "`Hall of Beginnings` outside the first stage" are recognised; the run resets to zero and leaves a FAILED history entry |
 | Initial boss target | `FlyLord` shows `Target —` for the first 57 seconds after the fight starts and no longer borrows the previous stage's enemy (the old version showed `LavaSac → …`) |
