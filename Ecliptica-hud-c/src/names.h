@@ -13,6 +13,11 @@ void boss_label(const char* internal, char* out, int cap);
 /* 阶段内部名 -> 显示名（未收录则原样返回） */
 const char* stage_display(const char* internal);
 
+/* 终局 Boss 专属地图：由 Boss 名 + 形态号反推，返回 NULL 表示不是终局 Boss。
+ *   Gilgamesh      : P1/P2 -> Altar of Destruction, P3 -> Ground Zero
+ *   Jim C. Bringer : P1/P2 -> Bringer's Desert,     P3 -> Bringer Mothership */
+const char* stage_from_final_boss(const char* boss_internal);
+
 /* 进度 0..1 -> 阶段名（Primal / Penumbral / Antumbral / Umbral / Eclipse / Eye of the Eclipse）*/
 const char* phase_display(double progress);
 

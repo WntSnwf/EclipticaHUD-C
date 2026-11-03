@@ -495,6 +495,62 @@ Boss：`FlyLord → Beelzebub`、`AntKing → Khepri`、`ManalyteAncient → Aba
 进度阶段：`0.43 → Antumbral`；
 伤害来源：`(Khepri) attack_Claws2 → Khepri · Claws 2`、`NukeHitbox (BIG) → Nuke (big)`。
 
+### 地图名（阶段名）怎么来的
+
+日志里的地图长这样：`ECLIPTICA - now in stage: Stage_CrystalMines on phase: 0.36 …`。
+`Stage_` 前缀会被剥掉，剩下的内部名按一张**只收实测条目**的表翻译：
+
+| 内部名 | 显示名 | 备注 |
+|---|---|---|
+| `CrystalMines` | Halram Mines | 内部名与显示名**毫无关系** |
+| `CalamityPalaceV2` | Calamity Palace 2 | `V2` 就是 2 |
+| `GMFuncFlat3` | GM_Func_Flat_3 | |
+| `OuterHeven` | Outer Heaven | 内部名**拼写少一个 a** |
+| `Hall of Beginnings` | Hall of Beginnings | 内部名**带空格** |
+| `Gilgamesh` | Altar of Destruction | 终局地图，内部名**就是 Boss 名**；三阶段另有同名地图，见下 |
+| `Bringer` | Bringer's Desert | 同上 |
+| `BalboaRuins` / `CopiedCity` / `GMBigcity` / `GMFuncFlat` / `LostElysia` / `ProtoColony` / `VRCHub` | … | |
+
+两条设计原则：
+
+1. **不猜。** 只有真实日志里出现过、且对应关系确认过的内部名才写进表。没收录的名字
+   **原样显示**（例如直接显示 `SomeNewMap`）——显示原始内部名，好过显示一个可能是错的猜测。
+   映射只做精确匹配，不存在"把 A 地图显示成 B 地图"的可能。
+2. **一张内部名对应两张图的，靠 Boss 形态修正。** 终局地图的内部名就是 Boss 名，
+   所以 `Stage_Gilgamesh` 既可能是 Altar of Destruction、也可能是 Ground Zero，
+   `Stage_Bringer` 同理。程序先按前两形态的默认图显示，等 Boss 行到达后再按形态覆盖：
+
+| 阶段内部名 | Boss 形态 | 面板显示 |
+|---|---|---|
+| `Stage_Gilgamesh` | `Gilgamesh` / `GilgameshPhase2` | Altar of Destruction |
+| `Stage_Gilgamesh` | `GilgameshPhase3` | **Ground Zero** |
+| `Stage_Bringer` | `JimBringer` / `JimBringerPhase2` | Bringer's Desert |
+| `Stage_Bringer` | `JimBringerPhase3` | **Bringer Mothership** |
+
+Boss 行永远在阶段行之后，所以覆盖一定生效；普通 Boss 触发不了这张表，其它地图完全不受影响。
+
+### 会打到哪个终局 Boss
+
+终局 Boss 由**献祭数量最多的神器**决定（wiki「神器与最终BOSS」）：
+
+| 献祭最多的神器 | 终局 Boss | 终局地图 |
+|---|---|---|
+| `HC Armor Plating` | Jim C. Bringer | Bringer's Desert → Bringer Mothership (P3) |
+| `Essence of Malice` / `Encrypted Archive` / `Sealed Megium` / `SparkGate Fragment` | Gilgamesh | Altar of Destruction → Ground Zero (P3) |
+
+这也解释了为什么终局地图的内部名是 Boss 名：那两张图本来就是"这一局的终局 Boss 的主场"。
+
+神器的生成规则分三类，注意 **`Hall of Beginnings` 是"必定生成全部"，不是"不生成"**：
+
+| 类别 | 地图 | 神器生成 |
+|---|---|---|
+| 不生成 | `Beginning Lobby`、`The End of Time`、四张终局地图 | 无 |
+| **必定全部生成** | `Hall of Beginnings` | 第一局固定在此图，**所有神器都会出现** |
+| 随机 | 其余所有地图 | 可能只有 1 个，也可能全部生成 |
+
+所以只看神器数量也能大致判断接下来会遇上谁。
+
+
 ---
 
 ## 世界识别

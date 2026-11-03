@@ -648,8 +648,44 @@ ECLIPTICA の死亡は**二段階**で、しかも戦闘開始によってリセ
 > ちなみに：正常な開始時の第 1 ステージは**まさに**初期ロビーで、この場合は全滅と
 > 誤判定されません。
 
+### Q15. ステージ名が生の英語内部名で表示されるのはなぜか
+
+パネルのステージ名は**ログから翻訳**しています。ログはこうなっています：
+
+```
+ECLIPTICA - now in stage: Stage_CrystalMines on phase: 0.36 as class: Nekomancer
+```
+
+`Stage_` の後ろ（`CrystalMines`）がゲーム内部のシーン名で、プログラムは対応表で正式名に
+変換します（`CrystalMines` → **Halram Mines**）。
+
+**対応表に無いマップは内部名のまま表示**します（例：`SomeNewMap`）。これは意図的です：
+内部名と表示名は無関係なことが多く（`CrystalMines` は Halram Mines、`Bringer` は
+Bringer's Desert）、当て推量より生の名前を出す方が誠実だからです。対応表の全体は
+README の「マップ（ステージ）名の出どころ」にあります。
+
+**終局 Boss の 2 つのマップ（Gilgamesh、Jim C. Bringer）は内部名を使わず、Boss から逆算**します：
+
+| Boss | 形態 | 表示されるステージ名 |
+|---|---|---|
+| Gilgamesh | P1 / P2 | Altar of Destruction |
+| Gilgamesh | P3 | Ground Zero |
+| Jim C. Bringer | P1 / P2 | Bringer's Desert |
+| Jim C. Bringer | P3 | Bringer Mothership |
+
+したがってパネルが終局 Boss を認識すれば、マップ名は必ず正しくなります。
+
+理由は**終局マップの内部名が Boss 名そのもの**だからです：`Stage_Gilgamesh` は
+Altar of Destruction のことも Ground Zero（三形態目で切り替わる）のこともあり、
+`Stage_Bringer` も同じです。ステージ行だけでは見分けられないため、プログラムはまず
+前 2 形態のマップを表示し、Boss 行が届いた時点で上書きします。
+
+> あるマップがずっと内部名のままなら、対応表にまだ入っていないだけです。ログの
+> `now in stage: Stage_XXX` の行を送ってもらえれば追加できます。
+
 ---
 
+## 6. 応用テクニック
 ## 6. 応用テクニック
 
 ### 6.1 コマンドラインの開き方

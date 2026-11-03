@@ -358,6 +358,20 @@ static void ensure_run(Stats* s, double t)
     if (!s->world[0]) copy_str(s->world, sizeof(s->world), "Ecliptica");
 }
 
+/* 终局 Boss 的地图靠 Boss + 形态反推（见 names.h）：
+ *   Gilgamesh 前两形态 -> Altar of Destruction，三阶段 -> Ground Zero
+ *   Jim C. Bringer 同理 -> Bringer's Desert / Bringer Mothership
+ * 只有真的是终局 Boss 才覆盖，其它地图完全不受影响。
+ * 必须在"首次开战"和"同一 Boss 进下一形态"两处都调用 ——
+ * 后者是续战，会提前 return。*/
+static void apply_final_boss_map(Stats* s, const char* boss)
+{
+    const char* map = stage_from_final_boss(boss);
+    if (!map) return;
+    copy_str(s->stage_disp, sizeof(s->stage_disp), map);
+    copy_str(s->cur_stage.disp, sizeof(s->cur_stage.disp), map);
+}
+
 /* 事件是否被采纳（false = 噪声，不必写进事件日志） */
 bool stats_on_event(Stats* s, const Event* e)
 {
@@ -459,6 +473,7 @@ bool stats_on_event(Stats* s, const Event* e)
                 /* 同一 Boss 的下一形态：续战，合并进同一场记录 */
                 fight_set_name(&s->cur_fight, e->name);
                 s->stage_boss_seen = true;
+                apply_final_boss_map(s, e->name);      /* 三阶段可能换地图 */
                 return false;
             }
             seal_fight(s, t, false, false);
@@ -467,6 +482,7 @@ bool stats_on_event(Stats* s, const Event* e)
         remember_boss(s, e->name);
         s->stage_boss_seen = true;
         s->intermission = false;
+        apply_final_boss_map(s, e->name);      /* 终局 Boss 反推地图 */
         break;
     }
 

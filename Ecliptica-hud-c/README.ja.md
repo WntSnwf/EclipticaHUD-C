@@ -518,6 +518,66 @@ Boss：`FlyLord → Beelzebub`、`AntKing → Khepri`、`ManalyteAncient → Aba
 進行ステージ：`0.43 → Antumbral`；
 被ダメージ内訳：`(Khepri) attack_Claws2 → Khepri · Claws 2`、`NukeHitbox (BIG) → Nuke (big)`。
 
+### マップ（ステージ）名の出どころ
+
+ログには `ECLIPTICA - now in stage: Stage_CrystalMines on phase: 0.36 …` のように出ます。
+`Stage_` の接頭辞を外した残りを、**実測で確認できた項目だけ**を載せた表で変換します：
+
+| 内部名 | 表示名 | 備考 |
+|---|---|---|
+| `CrystalMines` | Halram Mines | 内部名と表示名に**関連が無い** |
+| `CalamityPalaceV2` | Calamity Palace 2 | `V2` はそのまま 2 |
+| `GMFuncFlat3` | GM_Func_Flat_3 | |
+| `OuterHeven` | Outer Heaven | 内部名は **a が抜けている** |
+| `Hall of Beginnings` | Hall of Beginnings | 内部名に**空白が入る** |
+| `Gilgamesh` | Altar of Destruction | 終局マップ。内部名が**そのまま Boss 名**（下記）|
+| `Bringer` | Bringer's Desert | 同上 |
+| `BalboaRuins` / `CopiedCity` / `GMBigcity` / `GMFuncFlat` / `LostElysia` / `ProtoColony` / `VRCHub` | … | |
+
+設計方針は 2 つ：
+
+1. **推測しない。** 実際のログに現れ、対応が確認できた内部名だけを表に入れます。未収録の名前は
+   **そのまま表示**します（例：`SomeNewMap`）—— 間違っているかもしれない推測より、
+   生の内部名を出す方が誠実です。照合は完全一致なので、あるマップが別のマップとして
+   表示されることはありません。
+2. **1 つの内部名が 2 つのマップを指す場合は、Boss の形態で決めます。** 終局マップの内部名は
+   Boss 名そのものなので、`Stage_Gilgamesh` は Altar of Destruction のことも Ground Zero の
+   こともあり、`Stage_Bringer` も同様です。プログラムはまず前 2 形態のマップを表示し、
+   Boss 行が届いた時点で形態に応じて上書きします：
+
+| ステージ内部名 | Boss の形態 | 表示 |
+|---|---|---|
+| `Stage_Gilgamesh` | `Gilgamesh` / `GilgameshPhase2` | Altar of Destruction |
+| `Stage_Gilgamesh` | `GilgameshPhase3` | **Ground Zero** |
+| `Stage_Bringer` | `JimBringer` / `JimBringerPhase2` | Bringer's Desert |
+| `Stage_Bringer` | `JimBringerPhase3` | **Bringer Mothership** |
+
+Boss 行は必ずステージ行より後に来るので、上書きは必ず効きます。通常の Boss ではこの表は
+働かず、他のマップには一切影響しません。
+
+### どの終局 Boss に会うか
+
+終局 Boss は**最も多く献祭した Artifact（神器）**で決まります（wiki「神器与最终BOSS」）：
+
+| 最も多く献祭した神器 | 終局 Boss | 終局マップ |
+|---|---|---|
+| `HC Armor Plating` | Jim C. Bringer | Bringer's Desert → Bringer Mothership (P3) |
+| `Essence of Malice` / `Encrypted Archive` / `Sealed Megium` / `SparkGate Fragment` | Gilgamesh | Altar of Destruction → Ground Zero (P3) |
+
+終局マップの内部名が Boss 名なのも、そのマップが「その周回の終局 Boss の舞台」だからです。
+
+神器の生成は 3 通りに分かれます。**`Hall of Beginnings` は「生成しない」ではなく
+「必ず全部生成する」** ので注意してください：
+
+| 区分 | マップ | 神器 |
+|---|---|---|
+| 生成しない | `Beginning Lobby`、`The End of Time`、終局 4 マップ | なし |
+| **必ず全部生成** | `Hall of Beginnings` | 初回は必ずこのマップで、**すべての神器が出現** |
+| ランダム | それ以外の全マップ | 1 個だけのこともあれば全部のことも |
+
+そのため神器の集計は、次に誰と戦うかの目安にもなります。
+
+
 ---
 
 ## ワールド認識

@@ -673,8 +673,45 @@ from before the wipe, page back with the **◀ on the left** at the bottom.
 > Incidentally: the first stage of a normal run **is** the starting lobby, and that case is
 > not misdetected as a wipe.
 
+### Q15. Why does the stage name sometimes show a raw English internal name?
+
+The stage name on the panel is **translated from the log**. The log line looks like this:
+
+```
+ECLIPTICA - now in stage: Stage_CrystalMines on phase: 0.36 as class: Nekomancer
+```
+
+The part after `Stage_` (`CrystalMines`) is the game's internal scene name; the program looks it up
+in a table and shows the proper name (`CrystalMines` → **Halram Mines**).
+
+**Maps that are not in the table are shown as their raw internal name**, e.g. `SomeNewMap`. That is
+deliberate: internal and display names are often unrelated (`CrystalMines` is Halram Mines,
+`Bringer` is Bringer's Desert), so showing the raw name beats showing a guess. The full table is in
+the README section "Where map (stage) names come from".
+
+**The two final-boss maps (Gilgamesh, Jim C. Bringer) do not rely on internal names at all — they
+are derived from the boss:**
+
+| Boss | Phase | Stage name shown |
+|---|---|---|
+| Gilgamesh | P1 / P2 | Altar of Destruction |
+| Gilgamesh | P3 | Ground Zero |
+| Jim C. Bringer | P1 / P2 | Bringer's Desert |
+| Jim C. Bringer | P3 | Bringer Mothership |
+
+So as soon as the panel recognises the final boss, the map name is guaranteed correct.
+
+The reason is that **the final-boss maps use the boss name as their internal name**: `Stage_Gilgamesh`
+may be Altar of Destruction or Ground Zero (the map changes at phase 3), and `Stage_Bringer` is the
+same. A stage line alone cannot tell them apart, so the program shows the first-two-phase map and
+corrects it once the boss line arrives.
+
+> If a map keeps showing a raw internal name, it simply is not in the table yet. Send the
+> `now in stage: Stage_XXX` line from your log and it can be added.
+
 ---
 
+## 6. Advanced usage
 ## 6. Advanced usage
 
 ### 6.1 First, learn to open a command line

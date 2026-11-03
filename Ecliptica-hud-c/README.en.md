@@ -506,6 +506,67 @@ stages: `ProtoColony → Proto Colony`, `VRCHub → VRChat Hub`;
 progress stages: `0.43 → Antumbral`;
 damage sources: `(Khepri) attack_Claws2 → Khepri · Claws 2`, `NukeHitbox (BIG) → Nuke (big)`.
 
+### Where map (stage) names come from
+
+A map appears in the log as `ECLIPTICA - now in stage: Stage_CrystalMines on phase: 0.36 …`.
+The `Stage_` prefix is stripped and the remaining internal name is translated by a table that
+**only contains confirmed entries**:
+
+| Internal name | Display name | Note |
+|---|---|---|
+| `CrystalMines` | Halram Mines | the internal name has **nothing to do** with the display name |
+| `CalamityPalaceV2` | Calamity Palace 2 | `V2` really means 2 |
+| `GMFuncFlat3` | GM_Func_Flat_3 | |
+| `OuterHeven` | Outer Heaven | the internal name is **missing an "a"** |
+| `Hall of Beginnings` | Hall of Beginnings | the internal name **contains spaces** |
+| `Gilgamesh` | Altar of Destruction | final-boss map; the internal name **is the boss name** (see below) |
+| `Bringer` | Bringer's Desert | same |
+| `BalboaRuins` / `CopiedCity` / `GMBigcity` / `GMFuncFlat` / `LostElysia` / `ProtoColony` / `VRCHub` | … | |
+
+Two design rules:
+
+1. **No guessing.** Only internal names that actually appeared in real logs, with a confirmed
+   correspondence, are in the table. Anything else is shown **as-is** (e.g. `SomeNewMap`) —
+   showing the raw internal name is better than showing a guess that may be wrong. Matching is
+   exact, so a map can never be displayed as a different map.
+2. **When one internal name covers two maps, the boss phase decides.** The final-boss maps use the
+   boss name as their internal name, so `Stage_Gilgamesh` may be Altar of Destruction or Ground
+   Zero, and `Stage_Bringer` likewise. The program first shows the first-two-phase map and corrects
+   it once the boss line arrives:
+
+| Stage internal name | Boss phase | Shown as |
+|---|---|---|
+| `Stage_Gilgamesh` | `Gilgamesh` / `GilgameshPhase2` | Altar of Destruction |
+| `Stage_Gilgamesh` | `GilgameshPhase3` | **Ground Zero** |
+| `Stage_Bringer` | `JimBringer` / `JimBringerPhase2` | Bringer's Desert |
+| `Stage_Bringer` | `JimBringerPhase3` | **Bringer Mothership** |
+
+The boss line always arrives after the stage line, so the override always applies. Normal bosses
+never trigger this table, and other maps are untouched.
+
+### Which final boss you will meet
+
+The final boss is decided by **the artifact you sacrificed the most of** (wiki "神器与最终BOSS"):
+
+| Most-sacrificed artifact | Final boss | Final map |
+|---|---|---|
+| `HC Armor Plating` | Jim C. Bringer | Bringer's Desert → Bringer Mothership (P3) |
+| `Essence of Malice` / `Encrypted Archive` / `Sealed Megium` / `SparkGate Fragment` | Gilgamesh | Altar of Destruction → Ground Zero (P3) |
+
+That is also why the final-boss maps are named after the boss: those two maps are that run's final
+arena.
+
+Artifact generation falls into three cases — note that **`Hall of Beginnings` generates *all* of
+them, it does not generate none**:
+
+| Category | Maps | Artifacts |
+|---|---|---|
+| None | `Beginning Lobby`, `The End of Time`, the four final maps | no artifacts |
+| **All of them** | `Hall of Beginnings` | the first run always starts here and **every artifact appears** |
+| Random | every other map | anywhere from one artifact to all of them |
+
+So the artifact tally is also a decent hint of who you are about to face.
+
 ---
 
 ## World detection

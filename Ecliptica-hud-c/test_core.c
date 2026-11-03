@@ -130,7 +130,43 @@ static void test_names(void)
     CHECK(!strcmp(boss_display("Kodama"), "Kodama"), "Boss 未收录名称原样返回");
     CHECK(!strcmp(stage_display("ProtoColony"), "Proto Colony"), "阶段名称映射");
     CHECK(!strcmp(stage_display("VRCHub"), "VRChat Hub"), "阶段名称映射 VRCHub");
+    /* 依据真实日志补的地图名（内部名与显示名常常毫无关系）*/
+    CHECK(!strcmp(stage_display("CrystalMines"), "Halram Mines"),
+          "CrystalMines -> Halram Mines（内部名与显示名完全不同）");
+    CHECK(!strcmp(stage_display("CalamityPalaceV2"), "Calamity Palace 2"), "CalamityPalaceV2");
+    CHECK(!strcmp(stage_display("GMFuncFlat3"), "GM_Func_Flat_3"), "GMFuncFlat3");
+    CHECK(!strcmp(stage_display("OuterHeven"), "Outer Heaven"),
+          "OuterHeven -> Outer Heaven（内部名拼写少 a）");
+    CHECK(!strcmp(stage_display("Hall of Beginnings"), "Hall of Beginnings"),
+          "Hall of Beginnings（内部名带空格）");
+    CHECK(!strcmp(stage_display("Hallow"), "Hallow"), "Hallow");
+    CHECK(!strcmp(stage_display("NoSuchMapXyz"), "NoSuchMapXyz"),
+          "未收录的地图原样显示（映射只做精确匹配）");
+    /* 终局地图的内部名就是 Boss 名，一张内部名对应两张图：
+     * 阶段行只给得出前两形态的默认图，三阶段由 Boss 形态覆盖 */
+    CHECK(!strcmp(stage_display("Gilgamesh"), "Altar of Destruction"),
+          "Stage_Gilgamesh 默认 -> Altar of Destruction");
+    CHECK(!strcmp(stage_display("Bringer"), "Bringer's Desert"),
+          "Stage_Bringer 默认 -> Bringer's Desert");
+    /* 终局 Boss 的地图由 Boss + 形态反推，不靠阶段内部名 */
+    CHECK(!strcmp(stage_from_final_boss("Gilgamesh(Clone)"), "Altar of Destruction"),
+          "Gilgamesh P1 -> Altar of Destruction");
+    CHECK(!strcmp(stage_from_final_boss("GilgameshPhase2"), "Altar of Destruction"),
+          "Gilgamesh P2 -> Altar of Destruction");
+    CHECK(!strcmp(stage_from_final_boss("GilgameshPhase3"), "Ground Zero"),
+          "Gilgamesh P3 -> Ground Zero");
+    CHECK(!strcmp(stage_from_final_boss("JimBringer(Clone)"), "Bringer's Desert"),
+          "Jim C. Bringer P1 -> Bringer's Desert");
+    CHECK(!strcmp(stage_from_final_boss("JimBringerPhase3"), "Bringer Mothership"),
+          "Jim C. Bringer P3 -> Bringer Mothership");
+    CHECK(stage_from_final_boss("FlyLord(Clone)") == NULL, "普通 Boss 不反推地图");
+    /* 相位边界依据 EclipticaLocalWiki.md 的「相位」表 */
     CHECK(!strcmp(phase_display(0.0), "Primal"), "阶段进度 0 -> Primal");
+    CHECK(!strcmp(phase_display(0.19), "Primal"), "0.19 -> Primal（wiki: 0~0.2）");
+    CHECK(!strcmp(phase_display(0.2), "Penumbral"), "0.2 -> Penumbral（wiki: 0.2~0.4）");
+    CHECK(!strcmp(phase_display(0.4), "Antumbral"), "0.4 -> Antumbral（wiki: 0.4~0.6）");
+    CHECK(!strcmp(phase_display(0.6), "Umbral"), "0.6 -> Umbral（wiki: 0.6~0.8）");
+    CHECK(!strcmp(phase_display(0.8), "Eclipse"), "0.8 -> Eclipse（wiki: 0.8~1）");
     CHECK(!strcmp(phase_display(1.0), "Eye of the Eclipse"), "阶段进度 1 -> Eye of the Eclipse");
 
     char lbl[64];
@@ -221,6 +257,53 @@ static void test_long_names(void)
     CHECK(!strcmp(e.name, "Middleman"), "对象名正确");
     CHECK(!strcmp(e.cls, "ああああああああああああああ"), "玩家名完整保留（42 字节 < EV_CLASS_CAP）");
     CHECK(names_utf8_len(e.cls) == 14, "解析后字符数仍是 14");
+}
+
+/* 终局 Boss 的地图由 Boss + 形态反推：阶段内部名不可靠时也要显示正确地图 */
+static void test_final_boss_map(void)
+{
+    Stats s;
+    Event e;
+    stats_init(&s);
+    memset(&e, 0, sizeof(e));
+    e.type = EV_ROOM_ENTER; strcpy(e.name, "Ecliptica"); e.t = 1;
+    stats_on_event(&s, &e);
+
+    /* 一个我们没收录的阶段内部名：先原样显示 */
+    e.type = EV_STAGE; strcpy(e.name, "UnmappedFinalMap"); e.t = 2;
+    stats_on_event(&s, &e);
+    CHECK(!strcmp(s.stage_disp, "UnmappedFinalMap"), "未收录的阶段名先原样显示");
+
+    /* 终局地图的阶段行内部名就是 Boss 名（Stage_Gilgamesh），默认显示前两形态的图 */
+    e.type = EV_STAGE; strcpy(e.name, "Gilgamesh"); e.t = 2.5;
+    stats_on_event(&s, &e);
+    CHECK(!strcmp(s.stage_disp, "Altar of Destruction"), "Stage_Gilgamesh -> Altar of Destruction（默认）");
+
+    /* 终局 Boss 一亮相，地图按 Boss 反推 */
+    e.type = EV_BOSS_FIGHT; strcpy(e.name, "Gilgamesh(Clone)"); e.t = 3;
+    stats_on_event(&s, &e);
+    CHECK(!strcmp(s.stage_disp, "Altar of Destruction"), "Gilgamesh 出现 -> Altar of Destruction");
+    CHECK(!strcmp(s.cur_stage.disp, "Altar of Destruction"), "当前阶段记录同步更新");
+
+    /* 同一次战斗进三阶段 -> 换地图 */
+    e.type = EV_BOSS_FIGHT; strcpy(e.name, "GilgameshPhase3"); e.t = 4;
+    stats_on_event(&s, &e);
+    CHECK(!strcmp(s.stage_disp, "Ground Zero"), "Gilgamesh 三阶段 -> Ground Zero");
+
+    /* 普通 Boss 不能改动地图 */
+    {
+        Stats t2;
+        Event e2;
+        stats_init(&t2);
+        memset(&e2, 0, sizeof(e2));
+        e2.type = EV_ROOM_ENTER; strcpy(e2.name, "Ecliptica"); e2.t = 10;
+        stats_on_event(&t2, &e2);
+        e2.type = EV_STAGE; strcpy(e2.name, "Hallow"); e2.t = 11;
+        stats_on_event(&t2, &e2);
+        e2.type = EV_BOSS_FIGHT; strcpy(e2.name, "FlyLord(Clone)"); e2.t = 12;
+        stats_on_event(&t2, &e2);
+        CHECK(!strcmp(t2.stage_disp, "Hallow"), "普通 Boss 不反推地图，原地图保持不变");
+    }
 }
 
 /* ---------------- 世界识别 ---------------- */
@@ -1016,6 +1099,7 @@ int main(int argc, char** argv)
 
     printf("=== 解析器 ===\n");              test_parser();
     printf("\n=== 名称/来源 ===\n");         test_names();
+    printf("\n=== 名称：终局 Boss 地图 ===\n"); test_final_boss_map();
     printf("\n=== 过长玩家名 ===\n");        test_long_names();
     printf("\n=== 世界识别 ===\n");          test_world_aliases();
     printf("\n=== 格式化 ===\n");            test_format();
