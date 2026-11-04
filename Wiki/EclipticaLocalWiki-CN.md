@@ -15,10 +15,10 @@
 
 ## 一局的流程
 1. 在 Beginning Lobby（起始大厅）选择职业，并在 Workshop Anvil（工坊铁砧）装备符文。
-2. 进入地图（由本轮携带的神器决定），逐波清理敌人。
-3. 每波之间进入 The In-Between（夹层空间），用代币在三位商人处购买升级。
-4. 阶段推进：每经过一次商店，相位轮盘会前进，难度与敌人构成随之变化。
-5. 本层结束时挑战 Boss；击败后进入下一层。
+2. 进入地图（由本轮携带的神器决定），逐层清理敌人与BOSS。
+3. 本层结束时挑战 Boss；击败后进入下一层。
+4. 每层之间进入 The In-Between（夹层空间），用代币在三位商人处购买升级。
+5. 阶段推进：每经过一次商店，相位轮盘会前进，难度与敌人构成随之变化。
 6. 把神器带到维度传送门献祭，最终在 Eye of the Eclipse 面对终局 Boss。
 
 ## 相位
@@ -54,7 +54,7 @@
 ### 子目录
 - [Spellsword/魔剑士](#spellsword魔剑士牢剑)
 - [Twinmage/双生法师](#twinmage双生法师67)
-- [Gunmancer/枪术师](#gunmancer枪术师枪炮师x光物火暗电枪)
+- [Gunmancer/枪术师](#gunmancer枪术师枪炮师光物火暗电枪)
 - [Fistmage/拳法师](#fistmage拳法师拳师牢拳)
 - [Spellhammer/咒锤战士](#spellhammer咒锤战士砸丢锤)
 - [Shield Mage/盾法师](#shield-mage盾法师牢盾)
@@ -90,7 +90,7 @@
 - Spellsword: Engagement/魔剑士：交战
 >使用Quick Dash会短暂获得ENFORCED（坚壁）状态效果。辅助技能冷却 +15%（每层 +15%）
 - Spellsword: Hemorrhage/魔剑士：出血
->对已经处于BLEEDING（流血）状态的敌人再次施加流血时，会把已累计的全部层数转化为HEMORRHAGE（出血）状态效果。
+>对已经处于BLEEDING（流血）状态的敌人再次施加流血时，会把已累计的全部层数转化为Hemorrhaged（出血）状态效果。
 - Spellsword: Swift Stab/魔剑士：迅捷突刺
 >你的 Piercing Strike 伤害会按超过 100% 的移动速度百分比进行加成，倍率为其中的 35%，每层 +35%。
 - Spellsword: Shieldbreaker/魔剑士：破盾者
@@ -112,7 +112,7 @@
 投射物速度为 16m/s，最大距离 50m。
 ##### Hand: Ice Hand/冰之手
 发射一枚冰霜飞弹，造成 27 点冰霜伤害。
-10% 概率施加 FREEZING（冰冻）状态效果。
+10% 概率施加 Frozen（冰冻）状态效果。
 投射物速度为 20m/s，最大距离 50m。
 ##### Hand: Electric Hand/电之手
 施放一道闪电，造成 27 点电击伤害。
@@ -166,21 +166,21 @@
 只要有足够的赛博强化，再加上一门脑机接口 Blast Cannon，如今谁都能成为 Sorcerer。
 #### Skills/技能
 >Gunmancer 的Primary skill和Secondary skill都有选项，你可以选择不同的技能来改变效果，但每种技能最多只能选择一次。
-###### primary skill: VA-11 Blast Cannon/主技能：VA-11 爆能炮
+##### primary skill: VA-11 Blast Cannon/主技能：VA-11 爆能炮
 每 2 秒发射一次远距离命中扫描攻击，造成 50 点电击伤害。
 此外，在攻击命中的位置产生一次小爆炸，造成该投射物 50% 的伤害。
-###### Primary skill: Kinetic Flechette/主技能：动能飞镖
+##### Primary skill: Kinetic Flechette/主技能：动能飞镖
 发射一枚远距离投射物，造成 50 点物理伤害。投射物可以穿透一名敌人，然后转向最近的敌人。 15% 概率施加BLEEDING（流血）状态效果。
-###### Secondary skill: Firebomb/副技能：火焰炸弹
+##### Secondary skill: Firebomb/副技能：火焰炸弹
 每 X 秒发射一枚受重力影响很强的爆炸投射物，造成 50 点火焰伤害。
 该攻击命中后会在较大范围内爆炸，造成投射物 100% 的伤害
-###### Secondary skill: Photon Condenser/副技能：光子冷凝器
+##### Secondary skill: Photon Condenser/副技能：光子冷凝器
 每 0.25 秒发射一枚高速子弹，造成 10 点光耀伤害。
 5% 概率施加 WEAKENED（虚弱）状态效果。
-###### Secondary skill: Antimatter Accelerator/副技能：反物质加速器
+##### Secondary skill: Antimatter Accelerator/副技能：反物质加速器
 每 X 秒发射一次由 5 枚投射物组成的散射弹幕，每枚造成 8 点暗影伤害；按住可收窄散布。
 5% 概率施加 BREACHED（破防）状态效果。
-###### Utility skill: Airblast/辅助技能：气爆冲击
+##### Utility skill: Airblast/辅助技能：气爆冲击
 没有移动输入时，将自己向上弹射并短时间大幅降低重力。短暂延迟后，下一次技能会变为 CHARGED，造成 200% 伤害。
 有移动输入时，朝当前方向冲刺，冷却减少 75%。是否处于移动状态只根据按键输入判断，与实际速度无关。
 基础冷却 10 秒。
@@ -193,19 +193,19 @@
 >Firebomb 爆炸半径 +1m，每层 +1m；火焰伤害 +7%。
 - Gunmancer: Proficiency (Photon Condenser)/枪术师：熟练（光子冷凝器）
 >Photon Condenser 投射物数量 +1，每层 +1；光耀伤害 +7%。
-- Gunmancer: Proficiency (Antimatter Accelerator)/枪术士：熟练（反物质加速器）
+- Gunmancer: Proficiency (Antimatter Accelerator)/枪术师：熟练（反物质加速器）
 >Antimatter Accelerator 投射物数量 +1，每层 +1；暗影伤害 +5%。
 - Gunmancer: Specialization/枪术师：专精
 >攻击速度 +7%。辅助技能冷却 -7%
 - Gunmancer: Sidestep/枪术师：侧步
 >使用 Airblast Dash 后获得 2 层 HASTE（疾驰），每层升级 +1。
-- Gunmancer: Bombing Run/枪术士：轰炸突袭
+- Gunmancer: Bombing Run/枪术师：轰炸突袭
 >使用「气爆冲刺」时会额外投出一枚炸弹，造成火焰伤害。冷却 4 秒。
-- Gunmancer: Mastery/枪术士：精通
+- Gunmancer: Mastery/枪术师：精通
 >CHARGED 射击伤害 +25%（每层 +25%）。
-- Gunmancer: Marksman (VA-11 Blast Cannon)/枪术士：神射手（VA-11 爆能炮）
+- Gunmancer: Marksman (VA-11 Blast Cannon)/枪术师：神射手（VA-11 爆能炮）
 >周期性抛出硬币。用 Blast Cannon 击中硬币会把爆炸导向最近敌人，并使爆炸伤害提高 500%，每层 +24%；硬币尺寸 +10%，每层 +10%。由于只乘算爆炸部分，实际总伤害约为普通射击的 1.66 倍。
-- Gunmancer: Lucky Seven/枪术士：幸运七
+- Gunmancer: Lucky Seven/枪术师：幸运七
 >主技能的每第 7 发子弹伤害 +50%。主技能的每第 4 发子弹伤害 -50%。
 #### 编者简评
 枪术师在v0.6更新后迎来了一波小加强，尤其是物枪（Kinetic Flechette）得到了显著增强，添加了转向机制，使其在群体战斗中表现更为出色，且Gilgamesh的二阶段受击判定区域非常小，而且很多动~~（多动症之神）~~，物枪的追踪可以很好的克制，若升级选的不错的话实测也能有上千DPS的输出（注：该DPS数值为极限情况下，正常情况为500-650）。推荐新手玩家选择。
@@ -238,7 +238,7 @@
 - Fistmage: Mastery/拳法师：精通
 >成功偏转时，获得的 EMPOWERED（强化）和 ENFORCED（坚壁）层数 +1，每层升级再 +1。完美招架时，获得7层ADRENALINE（肾上腺素）状态效果。Deflecting Swipe 冷却 -7%（每层-7%）
 - Fistmage: Blast Radius/拳法师：爆炸半径
->释放满蓄力的Aura Fist 会在你周围引发爆炸，造成火焰伤害并有 10% 概率施加BURNT（燃烧）状态效果；爆炸会击退敌人。攻击速度 -30%
+>释放满蓄力的Aura Fist 会在你周围引发爆炸，造成火焰伤害并有 10% 概率施加Burning（燃烧）状态效果；爆炸会击退敌人。攻击速度 -30%
 - Fistmage: Rage/拳法师：狂怒
 >成功使用 Deflecting Swipe 偏转攻击后，攻击速度翻倍并持续 4 秒，同时获得 3 层HASTE（疾驰）状态效果（每层升级 +1 层）。该效果最多只能叠到 10 层HASTE（疾驰）。偏转失败则会短暂获得BREACHED（破防）状态效果.
 - Fistmage: Runner/拳法师：疾行者
@@ -316,19 +316,19 @@
 >提高 Defensive Stance 护盾的作用范围 X%，每层 X%。
 - Shield Mage: Specialization/盾法师：专精
 >防御 +2%（每层 +2%）。辅助技能冷却 -8%（每层 -8%）
-- Shieldmage: Unbreakable/盾法师：不屈
+- Shield Mage: Unbreakable/盾法师：不屈
 >来自 Purple Attacks 的伤害 -5%；Evasive Maneuver 护盾激活时，来自 Purple Attacks 的伤害 -10%。
-- Shieldmage: Bulldozer/盾法师：推土机
+- Shield Mage: Bulldozer/盾法师：推土机
 >使用 Evasive Maneuver 冲刺时，会在冲刺方向造成冰霜伤害并击退敌人。
-- Shieldmage: Ice Burst/盾法师：冰霜爆发
+- Shield Mage: Ice Burst/盾法师：冰霜爆发
 >每格挡一次攻击，提高 Ice Burst 的充能威力。
-- Shieldmage: Mastery/盾法师：精通
+- Shield Mage: Mastery/盾法师：精通
 >提高 Evasive Maneuver 护盾尺寸 X%，每层 X%。
-- Shieldmage: Drainshield/盾法师：吸盾
+- Shield Mage: Drainshield/盾法师：吸盾
 >在防御姿态下格挡伤害时回复 5 点生命（每层 +3 点）。生命回复 -100%（每层 -100%）。
-- Shieldmage: Rally Up/盾法师：鼓舞
+- Shield Mage: Rally Up/盾法师：鼓舞
 >使用 Evasive Maneuver 护盾会给予你和附近盟友短暂的 EMPOWERED（强化）状态效果。
-- Shieldmage: Warden/盾法师：守护者
+- Shield Mage: Warden/盾法师：守护者
 >使用 Evasive Maneuver 护盾会让自身与所有队友获得RESILIENCE（韧性）状态效果，可以格挡一次伤害。辅助技能冷却 +50%（每层 +50%）
 #### 编者简评
 编者没有玩过牢盾，无法给出很公正的评价，但盾对一个队伍的重要性是不言而喻的，而且上手简单，除了输出能力不高以外，没什么缺点。
@@ -703,7 +703,7 @@ Undead Kitties（亡灵猫）不会直接继承升级，但会获得玩家由升
 >每有 1 秒未造成伤害，就获得 +2.5% 伤害，最多累计 10 秒（+2.5%/阶段）。攻击速度 -20%（-20%/阶段）
 ><br>可防止符文诅咒：空洞</br>
 - Wrathful Binding
->造成伤害时回复 2 点生命（+2 点/阶段）。伤害 +5%（+5%/阶段）。攻击速度 +5%（+5%/阶段）。施加所有状态效果的几率 +10%（+10%/阶段）。受到伤害会获得短暂的DECAYED（衰朽）状态效果（每个阶段持续时间延长）。未造成伤害时，每 2 秒损失 5 点生命（-5 点/阶段）。
+>造成伤害时回复 2 点生命（+2 点/阶段）。伤害 +5%（+5%/阶段）。攻击速度 +5%（+5%/阶段）。施加所有状态效果的几率 +10%（+10%/阶段）。受到伤害会获得短暂的Decayed（衰朽）状态效果（每个阶段持续时间延长）。未造成伤害时，每 2 秒损失 5 点生命（-5 点/阶段）。
 ><br>可防止符文诅咒：空洞</br>
 
 ### 符文诅咒

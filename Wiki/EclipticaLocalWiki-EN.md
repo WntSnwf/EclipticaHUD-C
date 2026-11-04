@@ -39,7 +39,7 @@
 5. Boundary penalties
    >During boss fights, if you stay too close to the map boundary for too long, you’ll start taking two negative effects:
    ><br>“Poisoned” — about 10 damage/sec (based on 100 HP);</br>
-   >“Decay” — prevents healing, all recovery methods stop working.
+   >“Decayed” — prevents healing, all recovery methods stop working.
    ><br>Leaving the boundary area stops these effects from applying further, but any debuffs already received won’t disappear.</br>
 6. Token/Currency
    >Tokens are the main currency used for upgrades in Ecliptica.
@@ -89,7 +89,7 @@ Perform a dash in your current movement direction.
 - Spellsword: Engagement
 >Using Quick Dash will grant you a brief ENFORCED Status Effect. Utility Cooldown +15% (+15% per stack)
 - Spellsword: Hemorrhage
->When applying the BLEEDING Status Effect to an enemy with the effect already applied, convert all cumulative stacks into the HEMORRHAGE Status Effect.
+>When applying the BLEEDING Status Effect to an enemy with the effect already applied, convert all cumulative stacks into the Hemorrhaged Status Effect.
 - Spellsword: Swift Stab
 >Your Piercing Strike damage will be increased by 35% (+35% per stack) of your Movement Speed above 100%.
 - Spellsword: Shieldbreaker/
@@ -110,7 +110,7 @@ Launch a fireball, dealing 27 FIRE damage.
 Has a projectile speed of 16m/s and a max distance of 50m.
 ##### Hand: Ice Hand
 Launch a frost missile, dealing 27 FROST damage.
-10% chance to inflict FREEZING status effect.
+10% chance to inflict Frozen status effect.
 Has a projectile speed of 20m/s and a max distance of 50m.
 ##### Hand: Electric Hand
 Cast a bolt of lightning, dealing 27 ELECTRIC damage.
@@ -174,23 +174,23 @@ See [Twinmage.png](./Twinmage.png)
 With enough cybernetic enhancements and a brain-interfaced Blast Cannon, anyone can become a Sorcerer these days.
 #### Skills
 >Gunmancer's Primary and Secondary skills both have options, and you can choose different skills to change the effects, but each skill can only be chosen once.
-###### primary skill: VA-11 Blast Cannon
+##### primary skill: VA-11 Blast Cannon
 Fire a long-range hit scan attack every 2 seconds which deals 50 ELECTRIC Damage.
 Additionally, apply a small explosion where your attack hits, dealing 50% of the projectile's Damage.
 Has an 15% chance to apply the PARALYZED debuff to enemies.
-###### Primary skill: Kinetic Flechette
+##### Primary skill: Kinetic Flechette
 Fire a long-range projectile dealing 50 PHYSICAL Damage. The projectile can pierce an enemy, then redirect towards the nearest enemy.
 15% Chance to inflict the BLEEDING status effect.
-###### Secondary skill: Firebomb
+##### Secondary skill: Firebomb
 Launch an explosive projectile with high gravity every X seconds which deals 50 FIRE Damage.
 This attack explodes in a wide radius when it hits, dealing 100% of the projectile's Damage.
-###### Secondary skill: Photon Condenser
+##### Secondary skill: Photon Condenser
 Fire fast bullets every 0.25 seconds which deals 10 LUMINOUS Damage.
 5% Chance to inflict the WEAKENED status effect.
-###### Secondary skill: Antimatter Accelerator
+##### Secondary skill: Antimatter Accelerator
 Fire a scattered blast of five projectiles every X seconds which each deal 8 SHADOW Damage. Hold to narrow the spread.
 5% Chance to inflict the BREACHED status effect.
-###### Utility skill: Airblast
+##### Utility skill: Airblast
 While standing still, launch yourself upwards then gain greatly decreased gravity for a short time. After a short delay, your next skill fired will become CHARGED and deal 200% damage.
 While moving, perform a dash in your current movement direction with 75% reduced cooldown.
 Whether you're considered moving or not is based exclusively on key input and not velocity.
@@ -359,21 +359,21 @@ For 5 seconds stop yourself in place, creating an impenetrable shield around you
 - Shield Mage: Specialization
 >Defense +2% (+2% per stack),
 >Utility Cooldown -8% (-8% per stack)
-- Shieldmage: Unbreakable
+- Shield Mage: Unbreakable
 >Damage received from PURPLE Attacks -5%,
 >Damage received from PURPLE Attacks with an active Evasive Maneuver Shield -10%
-- Shieldmage: Bulldozer
+- Shield Mage: Bulldozer
 >Using your Evasive Maneuver Dash will deal FROST Damage in its direction, and knock enemies back.
-- Shieldmage: Ice Burst
+- Shield Mage: Ice Burst
 >Increases charge-up power of Ice Burst for each blocked Attack
-- Shieldmage: Mastery
+- Shield Mage: Mastery
 >Increase the size of your Evasive Maneuver shield by X% (X% per stack)
-- Shieldmage: Drainshield
+- Shield Mage: Drainshield
 >Blocking Damage in your Defensive Stance Heals 5 HP (+3 HP per stack),
 >Health Regeneration -100% (-100% per stack)
-- Shieldmage: Rally Up
+- Shield Mage: Rally Up
 >Using your Evasive Maneuver Shield gives you and your allies around you a brief EMPOWERED status effect
-- Shieldmage: Warden
+- Shield Mage: Warden
 >Using your Evasive Maneuver Shield gives you and all your allies the RESILIENCE status effect, letting them block an instance of Damage,
 >Utility Cooldown +50% (+50% per stack)
 #### Editor's Note
@@ -524,7 +524,7 @@ See [Nekomancer (outdated).png](./Nekomancer%20(outdated).png)
 >Jump Height: -10% (-10% per stack),
 >Movement Speed: -10% (-10% per stack)
 - Cold Blooded
->Reduce number of stacks taken of the FREEZING status effect by X (X per stack).
+>Reduce number of stacks taken of the Frozen status effect by X (X per stack).
 >FROST Defense: +15% (+15% per stack),
 >FIRE Defense: -15% (-15% per stack)
 - Conductive Armor
@@ -913,7 +913,7 @@ See [Nekomancer (outdated).png](./Nekomancer%20(outdated).png)
 >Attack Speed: +5% (+5% for each phase),
 >Chance to inflict all status effects: +10% (+10% for each phase).
 >Your HP will decay by 5 every 2 seconds while not dealing damage (-5 HP for each phase).
->Taking damage will inflict you with a brief DECAYED Status Effect (Increased duration for each phase)
+>Taking damage will inflict you with a brief Decayed Status Effect (Increased duration for each phase)
 ><br>Can prevent Runic Curse: Hollow</br>
 
 ### Curses
