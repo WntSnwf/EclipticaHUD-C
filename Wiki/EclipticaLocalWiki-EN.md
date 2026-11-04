@@ -14,12 +14,12 @@
 
 
 ## The flow of a round
-1. Choose your class in the Beginning Lobby and equip runes at the Workshop Anvil. 
-2. Enter the map (determined by the artifact you brought this stage) and clear enemies wave by wave. 
-3. Between stages, go into The In-Between and use tokens to buy upgrades from three Vendors. 
-4. Phase progression: each time you hit a shop, the Phase wheel advances, changing the difficulty and enemy composition. 
-5. At the end of this stage, challenge the Boss; defeat it to move on to the next stage. 
-6. Take your artifact to the Dimensional Portal for sacrifice, and finally face the final Boss in the Eye of the Eclipse.
+1. Choose your class in the Beginning Lobby and equip runes at the Workshop Anvil.  
+2. Enter the map (determined by the artifact carried from the previous stage) and clear enemies and bosses stage by stage.  
+3. At the end of each stage, sacrifice your artifact and challenge the boss; after defeating it, move on to the next stage.  
+4. Between stages, enter the In-Between, and use tokens to buy upgrades from three Vendors.  
+5. Stage progression: every time you go through a shop, the phase wheel advances, changing the difficulty and enemy composition.  
+6. Finally, face the final boss at the Eye of the Eclipse.
 
 ## Phase
 | Phase value range | Stage |
@@ -960,7 +960,7 @@ See [Nekomancer (outdated).png](./Nekomancer%20(outdated).png)
 
 ## Artifacts
 ### Introduction
->Artifacts are a key form of progression in Ecliptica, they serve as an extra task to do before you can fight the boss on each floor.
+>Artifacts are a key form of progression in Ecliptica, they serve as an extra task to do before you can fight the boss on each stage.
 ><br>Artifacts held actually dictates what Map you go to next.</br>
 >Each Artifact can give stat bonuses to everyone for the troubles of bringing them to the dimensional teleporter.
 ><br>If an Artifact is the last objective before gathering to the Dimensional Teleporter, everyone will be granted the Haste Status Effect until one is successfully sacrificed to the Dimensional Teleporter.</br>
