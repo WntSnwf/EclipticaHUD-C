@@ -59,6 +59,11 @@ modification, no OSC required**. Implemented in pure C + Win32/GDI, linked only 
 Each tier reports: Damage, Peak DPS, Best Hit, DPS, Taken, hit count, Max Hit, Avg Hit, Taken/s
 and Tokens. **Best Hit** is the highest single damage instance you dealt; it resets when your
 class changes, just like Peak DPS.
+
+**Single-hit damage has a soft cap of 6000.** The wiki states that "the highest damage a player
+can deal starts to decay after 6000", so **Best Hit** should never sit far above that. If the panel
+shows a single hit far above 6000, suspect several damage instances being merged into one line
+before suspecting the wiki.
 DPS uses a switchable sliding window: **3 / 5 / 10 / 30 / 60 / 120 seconds**.
 > **Deaths are neither counted nor logged.** See
 > [Why there is no death statistic](#why-there-is-no-death-statistic).
@@ -73,11 +78,19 @@ ECLIPTICA's death is a **two-stage** mechanic, and combat start resets it:
   revived** and you end up spectating. The one exception is the `Thaumaturge` upgrade
   **`Thaumaturge: Everlife`**: it spends 25 of the player's current-turn max HP plus 100% LIFE
   ENERGY (built up by Thaumaturge attacks) to revive a player carrying Mortal Curse (it cannot be
-  used once max HP is below 25), and the reviver then gains 60 stacks of `Breached` and `Weakened`.
+  used once max HP is below 25), and the reviver then gains 40 stacks of `Breached` and `Weakened`
+
+
+  (-10% per level).
 - **Revive on combat start**: at every stage start and every boss-fight start, players who are
   "Dead" are revived and second-down players are rolled back to first down.
   **Normal bosses only do this at P1**; the **final bosses (`Jim C. Bringer`, `Gilgamesh`) do it at
   the start of every phase**.
+
+> One more mechanic can drain HP **without any damage line**: the **`Collapse`** status effect deals
+> 10% of your max HP per 0.1 s and is re-applied repeatedly once a boss fight exceeds its time
+> limit. It is not always accompanied by a `damage has been taken` line, so "died without being hit"
+> really can happen — another reason not to guess life and death from the log.
 
 So "what state is the player in" cannot be inferred from the log alone: the same
 `Local controller dead` line may be a first down (revived seconds later) or a second down, and

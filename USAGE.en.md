@@ -541,7 +541,10 @@ ECLIPTICA's death is a **two-stage** mechanic, and combat start resets it:
   revived** and you end up spectating. The one exception is the Thaumaturge upgrade
   **`Thaumaturge: Everlife`**: it spends 25 of the player's current-turn max HP plus 100% LIFE
   ENERGY (built up by Thaumaturge attacks) to revive a player carrying Mortal Curse (it cannot be
-  used once max HP is below 25), and the reviver then gains 60 stacks of `Breached` and `Weakened`.
+  used once max HP is below 25), and the reviver then gains 40 stacks of `Breached` and `Weakened`
+
+
+  (-10% per level).
 - **Revive on combat start**: at every stage start and every boss-fight start, players who are
   "Dead" are revived and second-down players are rolled back to first down.
   **Normal bosses only do this at P1**; the **final bosses (`Jim C. Bringer`, `Gilgamesh`) do it at

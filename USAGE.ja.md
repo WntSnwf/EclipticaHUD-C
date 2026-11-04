@@ -519,7 +519,8 @@ ECLIPTICA の死亡は**二段階**で、しかも戦闘開始によってリセ
   唯一の例外が Thaumaturge の強化 **`Thaumaturge: Everlife`（奇跡師：永生）** で、
   25 点のそのターンの最大 HP と 100% の LIFE ENERGY（Thaumaturge の攻撃で溜まる）を消費して
   Mortal Curse 持ちを蘇生できます（最大 HP が 25 未満になると使えません）。
-  蘇生した側は 60 スタックの `Breached`（破防）と `Weakened`（虚弱）を得ます。
+  蘇生した側は 40 スタックの `Breached`（破防）と `Weakened`（虚弱）を得ます（1レベルごとに -20 層）。
+  さらに LIFE ENERGY 獲得量 -10%（1レベルごとに -10%）。
 - **戦闘開始時の蘇生**：各ステージ開始時と Boss 戦開始時に、倒地中のプレイヤーは蘇生され、
   二倒のプレイヤーは一倒に戻されます。
   **通常の Boss は P1 開始時のみ**この仕組みが働き、**終局 Boss（`Jim C. Bringer` / `Gilgamesh`）は
