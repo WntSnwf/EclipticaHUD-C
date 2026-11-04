@@ -165,7 +165,7 @@ Teleport 15 meters to where you are pointing.
 - Twinmage: Retaliation
 >Taking Damage will grant you 6 (+1 per stack) stacks of the EMPOWERED status effect. 6 second cooldown.
 #### Editor's Note
-Twinmage is a really interesting class, with unique skill mechanics and gameplay. By choosing different elemental hand skills, players can adjust their damage output according to personal preference and tactical needs. Personally, I recommend a combination of the Electric Hand and any other elemental hand, then choose either the left or right path upgrade based on the Electric Hand's left and right hand bonuses. Almost all upgrades are core upgrades, and there are also some general upgrades you need to pick. From my own experience, Twinmage has the highest DPS (1500, note: this DPS value is under extreme conditions, normally it’s 300-500), so I recommend it for new players.
+Twinmage is a really interesting class, with unique skill mechanics and gameplay. By choosing different elemental hand skills, players can adjust their damage output according to personal preference and tactical needs. Personally, I recommend a combination of the Electric Hand and any other elemental hand, then choose either the left or right path upgrade based on the Electric Hand's left and right hand bonuses. Almost all upgrades are core upgrades, and there are also some general upgrades you need to pick. I recommend it for new players.
 #### Recommended Upgrades
 See [Twinmage.png](./Twinmage.png)
 
@@ -227,7 +227,7 @@ Whether you're considered moving or not is based exclusively on key input and no
 >Every 7th (Seventh) shot of your Primary Skill will deal 50% more Damage.
 >Every 4th (Fourth) show of your Primary Skill will deal 50% less Damage.
 #### Editor's Note
-After the v0.6 update, Gunmancer got a small buff, especially the Kinetic Flechette, which was significantly improved. A turning mechanism was added, making it perform better in group fights. Also, Gilgamesh’s second-stage hitbox is very small and it’s very... twitchy ~~(god of ADHD)~~, so the Kinetic Flechette’s tracking can handle it pretty well. If you upgrade it right, it can actually deal over a thousand DPS in tests (note: this DPS is in extreme cases; normally it’s around 500-650). Recommended for new players.
+After the v0.6 update, Gunmancer got a small buff, especially the Kinetic Flechette, which was significantly improved. A turning mechanism was added, making it perform better in group fights. Also, Gilgamesh’s second-stage hitbox is very small and it’s very... twitchy ~~(god of ADHD)~~, so the Kinetic Flechette’s tracking can handle it pretty well. Recommended for new players.
 #### Recommended upgrades
 See [Gunmancer (Kinetic Flechette).png](./Gunmancer%20(Kinetic%20Flechette).png)、[Gunmancer (VA-11 Blast Cannon, outdated).png](./Gunmancer%20(VA-11%20Blast%20Cannon,%20outdated).png)
 **<br>The editor hasn't played the new version of VA-11 Blast Cannon; the illustrated upgrades are for version 0.5</br>**
@@ -336,7 +336,7 @@ Release a wide explosion dealing 130 PHYSICAL damage, and jump backwards.
 >Performing a full-power throw will grant you a brief EMPOWERED Status Effect.
 >You may only have a maximum of 5 stacks of EMPOWERED (each upgrade increases this cap by 2)
 #### Editor's Note
-The editor has tried both of its modes: Jump Smash is better suited for players with some gaming experience, while Chuck is more for beginners. But what they have in common is that they struggle against moving targets. In the current version, where ADHD-like behavior is pretty common, they're a bit at a disadvantage. Still, Spellhammer's single-hit damage is quite impressive (could be around 1000).
+The editor has tried both of its modes: Jump Smash is better suited for players with some gaming experience, while Chuck is more for beginners. But what they have in common is that they struggle against moving targets. In the current version, where ADHD-like behavior is pretty common, they're a bit at a disadvantage. Still, Spellhammer's single-hit damage is quite impressive.
 #### Recommended upgrades
 See [Spellhammer (Chuck).png](./Spellhammer%20(Chuck).png)
 <br>No upgrade recommendations for Jump Smash yet (because the editor don't know how to play it well)</br>
@@ -377,7 +377,7 @@ For 5 seconds stop yourself in place, creating an impenetrable shield around you
 >Using your Evasive Maneuver Shield gives you and all your allies the RESILIENCE status effect, letting them block an instance of Damage,
 >Utility Cooldown +50% (+50% per stack)
 #### Editor's Note
-The editor hasn't played Shield Mage, so can't give a very fair evaluation, but the importance of a shield to a team is obvious, and it's easy to use. Besides having low damage output, it really has no drawbacks.
+The editor hasn't played Shield Mage, so can't give a very fair evaluation, but the importance of a shield to a team is obvious, and it's easy to use, though its damage output isn't high.
 
 ### Thaumaturge
 #### Introduction
