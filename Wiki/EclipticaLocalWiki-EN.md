@@ -11,6 +11,7 @@
 7. [Runes + Curses](#runes--curses)
 8. [Artifacts](#artifacts)
 9. [Maps](#maps)
+10. [Bosses](#bosses)
 
 
 ## The flow of a round
@@ -779,16 +780,19 @@ See [Nekomancer (outdated).png](./Nekomancer%20(outdated).png)
 >For Players: Increases all damage taken by 75%,
 >For Enemies: Increases all damage taken by 25%.
 >Stacks last for 0.7 seconds.
+>Shadow damage can apply this debuff.
 - Decayed
 >Sets healing received to 0%
 >Stacks last for X seconds.
 - Frozen
 >Each stack deals frost damage when it expires, lasting 0.6 seconds. Each stack has a chance to inflict 'Freeze': movement speed -75%; player's Utility Skill cooldown rate -90%.
+>Frost damage can apply this debuff.
 - Heavy
 >Sets jump height to 0%。
 >Stacks last for X seconds
 - Paralyzed
 >Each stack deals lightning damage when it expires, lasting for 0.3 seconds per stack. Each stack also has a chance to apply 'Rigid': movement speed -99% and unable to attack. It won't interrupt enemies or bosses that are in the middle of an attack animation.
+>Electric damage can apply this debuff.
 - Sticky
 >Sets Movement Speed and Jump Height to 25%.
 >Stacks last for x seconds.
@@ -796,18 +800,22 @@ See [Nekomancer (outdated).png](./Nekomancer%20(outdated).png)
 >For Players: Reduces all sources of damage dealt by 75%,
 >For Enemies: Reduces all sources of damage dealt by 25%.
 >Stacks last for 0.8 seconds
+>Luminous damage can apply this debuff.
 - Bleeding
 >Deals Physical damage when a stack expires.
 >Stacks last for 0.8 seconds.
+>Physical damage can apply this debuff.
 - Burning
 >Deals Fire damage when a stack expires.
 >Stacks last for 0.5 seconds.
+>Fire damage can apply this debuff.
 - Hemorrhaged
 >Deals Physical Damage when a stack expires, and at double the damage amount of Bleeding.
 >Stacks last for 0.8 seconds.
 - Poisoned
 >Deals Poison damage when a stack expires.
 >Stacks last for 0.75 seconds.
+>Poison damage can apply this debuff.
 - Apply Force
 >Spendable for the Fistmage: Apply Force Upgrade
 - Collapse
@@ -1024,3 +1032,526 @@ See [Nekomancer (outdated).png](./Nekomancer%20(outdated).png)
 >This map will appear when Jim C. Bringer enters the third stage.
 - The End of Time
 >After the player defeats the final boss, they will enter this map, where they can check some information related to the current battle. Players need to gather at the black hole to reset everything and return to the Beginning Lobby.
+
+## Bosses
+### Boss list
+- [Maxipuss](#maxipuss)
+- [Darkmouth](#darkmouth)
+- [Kakarot](#kakarot)
+- [NaN](#nan)
+- [Beelzebub](#beelzebub)
+- [Buff Noob](#buff-noob)
+- [Vesra](#vesra)
+- [Pride](#pride)
+- [Steven](#steven)
+- [Kodama](#kodama)
+- [The Gravetender](#the-gravetender)
+- [The Black Lily](#the-black-lily)
+- [Zaveah](#zaveah)
+- [Middleman](#middleman)
+- [Ha'Kli](#hakli)
+- [Amaziah](#amaziah)
+- [Jacked O' Lantern](#jacked-o-lantern)
+- [M-41-D](#m-41-d)
+- [Corus](#corus)
+- [Yuki](#yuki)
+- [Cone Head](#cone-head)
+- [Mephiel](#mephiel)
+- [Golden Grouch](#golden-grouch)
+- [Pandora](#pandora)
+- [Abaddon](#abaddon)
+- [Khepri](#khepri)
+- [Onyx Pilot](#onyx-pilot)
+- [Bravera](#bravera)
+- [O-One](#o-one)
+- [Neo Pilot](#neo-pilot)
+- [Jim C. Bringer](#jim-c-bringer)
+- [Gilgamesh](#gilgamesh)
+
+### Prime
+#### Maxipuss
+##### Base stats
+- Base HP: 5300
+>Base HP is the value when only 1 player is in the instance and the boss spawns on the first layer (uncertain)
+- Phases: 1
+>Sub-phases driven by an HP threshold are not counted; only Phase1/2/3 as explicitly labelled in the game log
+- Weak to: Frost, Shadow
+- Resists: Luminous
+##### Damage types
+- Deals Physical damage
+- Can apply Poisoned
+>Debuffs that come with a damage type are not repeated under "can apply"
+##### Behavior
+- The Maxipuss fight has 1 phase.
+- Up close, Maxipuss uses simple punches and an opening grab.
+- Against distant targets, Maxipuss may throw a furball or jump.
+##### Editor's note
+A very simple boss; there is nothing in particular to watch out for.
+
+#### Darkmouth
+##### Base stats
+- Base HP: 4200
+- Phases: 1
+- Weak to: Shadow, Poison
+- Resists: Luminous
+>Editor's rant: Luminous is almost universally resisted — nearly every enemy resists it, and enemies weak to Luminous are very rare.
+##### Damage types
+- Deals Physical and Poison damage
+##### Behavior
+Darkmouth tries to keep its distance and uses 2 attacks. The first is a volley of poison projectiles; the second is a charge at the target that deals noticeably higher damage. It usually alternates between the two, but occasionally changes up the pattern and timing to catch opponents off guard.
+##### Editor's note
+Darkmouth is slightly harder than Maxipuss and can put some pressure on a solo run, but in multiplayer it is still just a speed bump.
+
+#### Kakarot
+##### Base stats
+- Base HP: 5800
+- Phases: 1
+- Weak to: none
+- Resists: none
+##### Damage types
+- Deals Physical damage
+##### Behavior
+- The Kakarot fight has 1 phase.
+- Kakarot alternates between a heavy forward smash and scattering small AoEs around itself.
+- Against distant targets, Kakarot may throw rocks or jump upward with low accuracy.
+##### Editor's note
+Kakarot is easier than Darkmouth but slightly harder than Maxipuss; it adds a little pressure in solo play, but in multiplayer it is still a speed bump.
+
+#### NaN
+##### Base stats
+- Base HP: 5300
+- Phases: 1
+- Weakness and resistances: depend on the current mode, see Behavior
+##### Damage types
+- Deals Fire, Frost, Electric, Luminous and Shadow damage
+##### Behavior
+- NaN is a machine that can switch between 4 different modes, each with its own difficulty and weakness.
+- In Fire mode, NaN becomes weak to Fire and periodically fires projectiles at the target, with a chance to ignite it.
+- In Frost mode, NaN becomes weak to Frost and fires grouped projectiles, with a chance to freeze the target.
+- In Electric mode, NaN becomes weak to Electric and fires lightning into the sky, which then lands in a small AoE with a chance to paralyze the target.
+- In Shadow and Luminous modes, NaN can fire a ring of shadow projectiles that apply BREACHED, or a row of luminous projectiles that apply WEAKENED. Note that in this form it is not weak to Shadow or Luminous, because it uses both opposing elements at once.
+##### Editor's note
+NaN is relatively easy, though still harder than Maxipuss. In solo play the various debuffs are unpleasant if you do not dodge properly; in multiplayer it is still a speed bump.
+
+#### Beelzebub
+##### Base stats
+- Base HP: 5200
+- Phases: 1
+- Weak to: Fire, Shadow
+- Resists: Frost, Luminous, Poison
+##### Damage types
+- Deals Physical and Poison damage
+- Can apply Decayed
+##### Behavior
+- The Beelzebub fight has 1 phase.
+- Beelzebub can summon flies to fight alongside it. They spawn automatically when its HP drops to 50%.
+>Note: even if Beelzebub itself is killed, the summoned flies remain, and the layer cannot be cleared until all of them are dead. The same rule applies to every boss that summons minions and will not be repeated below.
+##### Editor's note
+Beelzebub itself is not hard, but the flies it summons are annoying and harass you constantly — even in multiplayer.
+
+#### Buff Noob
+##### Base stats
+- Base HP: 4800
+- Phases: 1
+- Weak to: Electric, Shadow
+- Resists: Luminous
+##### Damage types
+- Deals Physical damage
+##### Behavior
+The Buff Noob fight is the first to introduce purple attacks, in the form of heavy slams that pierce the opponent's defense. He focuses on closing in and knocking the opponent down with consecutive hits. At around 40% HP he consumes one of two items, Pizza or Bloxy Cola, healing himself and gaining ENFORCED or EMPOWERED respectively. When the threshold is reached again he repeats this with the remaining item.
+##### Editor's note
+Buff Noob is not hard — honestly easier than Beelzebub. Its purple attacks are easy to dodge; the hit window is just long, so do not walk into range before the animation ends.
+
+### Late Prime / Early Penumbra
+#### Vesra
+##### Base stats
+- Base HP: 4800
+- Phases: 1
+- Weak to: Fire, Shadow
+- Resists: Frost, Luminous, Poison
+##### Damage types
+- Deals Physical damage
+##### Behavior
+- The Vesra fight has 2 sub-phases: a normal form and a cocoon form. While in the cocoon, Vesra is immune to all damage.
+- In the normal form, Vesra alternates between a ground moveset and an air moveset. At 50% HP it enters the cocoon, spawns one Peltapod Guard and then spawns ordinary Peltapods at fixed intervals. Once the Peltapod Guard is killed (uncertain), it leaves the cocoon and returns to the normal form.
+##### Editor's note
+Vesra is not hard; with good spacing and positioning you can clear it without taking damage. Note that while flying it raises its large arms, which blocks damage in some areas.
+
+#### Pride
+##### Base stats
+- Base HP: 4600
+- Phases: 1
+- Weak to: Electric
+- Resists: Luminous, Shadow
+##### Damage types
+- Deals Physical and Luminous damage
+##### Behavior
+- Pride focuses on controlling the area around itself rather than a single target. Many of its attacks spawn heart projectiles that orbit it while it performs a move and catch opponents off guard. It can also cast 2 different beams: one summoned in front of it, and one from its umbrella.
+- Pride can take to the air at any moment, spawning a swarm of heart projectiles and firing more of them at opponents on the ground, following them at close range.
+##### Editor's note
+Pride is one of the more peculiar bosses players meet early on. Most of its attacks are not very threatening, but the heart projectiles and the WEAKENED they apply are annoying. While flying, its umbrella blocks damage in some areas.
+
+### Penumbra
+#### Steven
+##### Base stats
+- Base HP: 8600
+- Phases: 1
+- Weak to: Frost, Shadow
+- Resists: Fire, Luminous
+##### Damage types
+- Deals Physical and Fire damage
+##### Behavior
+- The Steven fight has 2 sub-phases: a normal form and a burning form.
+- In the normal form, Steven delivers high-damage slashes and lays down syrup pools. Standing in syrup stacks the Sticky debuff.
+- At 50% HP, Steven enters the burning state: every move gains extra fire damage and a chance to inflict Burning. His syrup moves also fire out more syrup pools.
+##### Editor's note
+Steven is another peculiar boss; the syrup pools it drops are genuinely annoying, especially in the second sub-phase — on smaller maps you will find syrup everywhere and simply have to eat the Sticky slow. Note that Steven fires fast projectiles at distant targets, so do not assume it is a pure melee boss.
+
+#### Kodama
+##### Base stats
+- Base HP: 6500
+- Phases: 1
+- Weak to: Luminous
+- Resists: Physical
+##### Damage types
+- Deals Shadow damage
+- Can apply Decayed, Bleeding and Heavy
+##### Behavior
+Kodama is a stationary boss with a ring of shadow around the arena that deals continuous damage. It uses large AoE blasts and summons thorns for purple attacks.
+##### Editor's note
+Kodama is another peculiar boss. Being immobile makes it a training dummy, but its blasts and spinning laser constantly interrupt your damage. Some classes can jump onto its back to avoid the blasts and laser, though that may not avoid the thorns.
+
+#### The Gravetender
+##### Base stats
+- Base HP: 6500
+- Phases: 1
+- Weak to: Luminous, Frost
+- Resists: Fire
+##### Damage types
+- Deals Shadow and Physical damage
+##### Behavior
+- The Gravetender fight has 1 phase.
+- The Gravetender is a semi-stationary boss that occasionally burrows under the arena to move beneath players. It sometimes fires a Gravity Well — a slow-moving sphere that pulls every player in its radius into it; Gravity Well cannot be killed and only disappears over time.
+##### Editor's note
+A pure training dummy — if it never moved it would be the perfect one. Gravity Well can be a little annoying. By the way, Gravity Well counts as a summon, so the layer cannot be cleared until it disappears.
+
+### Late Penumbra / Early Antumbra
+#### The Black Lily
+##### Base stats
+- Base HP: 6500
+- Phases: 1
+- Weak to: Fire, Frost
+- Resists: Luminous, Shadow
+##### Damage types
+- Deals Luminous and Shadow damage
+- Can apply Decayed and Bleeding
+##### Behavior
+The Black Lily is a stationary boss that can summon up to 3 Black Lily Tokens at any time. It starts with only 2 attacks; below 50% HP it gains several additional and far more destructive moves, from puddles that apply the Decayed status to a large laser that covers half the arena. Many of its attacks have almost no telegraph, forcing opponents to watch both it and its minions or be caught out.
+##### Editor's note
+A miserable fight. Even though it is stationary, its puddles and lasers force you to keep moving to find a safe spot, and the WEAKENED from its Luminous damage plus the ENFORCED it applies to itself make your damage feel like scratching.
+
+#### Zaveah
+##### Base stats
+- Base HP: 16000
+- Phases: 1
+- Weak to: Electric, Shadow
+- Resists: Fire, Luminous, Poison
+##### Damage types
+- Deals Physical and Electric damage
+- Can apply Burning
+##### Behavior + Editor's note
+Zaveah uses a wide range of skills — from a spinning bumper car that drags players along, to projectile volleys, to the extending lance in its hand, to summoning a series of minions — forcing opponents to mind both their positioning and the minions. It has a fair amount of difficulty. Once its HP crosses certain thresholds its spinning skill is upgraded and becomes far more threatening.
+>Minions it may summon include: Voltwall, Voltwalker, Volt Buster
+
+#### Middleman
+##### Base stats
+- Base HP: 7800
+- Phases: 1
+- Weak to: Fire, Electric, Shadow
+- Resists: Luminous, Poison
+##### Damage types
+- Deals Physical and Electric damage
+##### Behavior
+Middleman is the first fast-paced boss: it charges constantly and slashes with twin swords. During the fight it leaps high into the air and then either dives back down to kick or fires a piercing laser at the opponent. Middleman specialises in close quarters, and most of its attacks lunge at the opponent to close the gap quickly.
+##### Editor's note
+A relatively peculiar enemy — very mobile, and the Bleeding it applies is annoying — but not hard; a multiplayer party can usually clear it with no casualties.
+
+### Antumbra
+#### Ha'Kli
+##### Base stats
+- Base HP: 21000
+- Phases: 1
+- Weak to: Frost, Shadow
+- Resists: Fire, Luminous
+##### Damage types
+- Deals Physical and Fire damage
+##### Behavior + Editor's note
+Ha'Kli, added in v0.6, is fairly difficult. It throws fireballs that deal wide-area damage, can summon moving fire pillars to disrupt players, and can apply ENFORCED and EMPOWERED to itself. Its damage is high, so keep dodging; even a multiplayer party will find it somewhat demanding.
+
+#### Amaziah
+##### Base stats
+- Base HP: 15000
+- Phases: 1
+- Weak to: Frost, Shadow
+- Resists: Fire, Luminous, Poison
+##### Damage types
+- Deals Physical and Poison damage
+##### Behavior
+Amaziah is a poison boss that fights mostly at close range, and every attack also fires poison projectiles. At 60% HP its moveset expands: it can make larger, deadlier jumps, lunge at airborne opponents, and fire a beam from its face.
+##### Editor's note
+Another miserable fight — mobile, high damage, DoT: the full package. It also has 50% Poison resistance, which lowers how fast Thaumaturge builds Life Energy and therefore how often it can heal. A party with low gear can easily wipe.
+
+#### Jacked O' Lantern
+##### Base stats
+- Base HP: 18000
+- Phases: 1
+- Weak to: Fire, Shadow, Poison
+- Resists: Frost, Luminous, Electric
+##### Damage types
+- Deals Physical and Fire damage
+##### Behavior
+- The Jacked O' Lantern fight has 2 sub-phases. In the second, all of its basic swings also fire additional fire projectiles, and all of its slams leave fire pillars behind.
+- Jacked O' Lantern enters the second sub-phase at 35% HP and heals a large amount of its total HP. In that sub-phase it may also use Bulk Up, gaining ENFORCED and EMPOWERED for a long time.
+##### Editor's note
+Jacked O' Lantern is not hard to deal with, but the moves it gains in the second sub-phase — randomly throwing fireballs and leaving fire pits on the ground — are annoying, and its slams track you somewhat.
+
+### Late Antumbra / Early Umbra
+#### M-41-D
+##### Base stats
+- Base HP: 1300
+- Phases: 1
+- Weak to: Electric, Shadow
+- Resists: Fire, Luminous, Poison
+##### Damage types
+- Deals Electric damage
+##### Behavior
+- The M-41-D fight has 2 sub-phases: a standard phase and a tower phase.
+- Once only, at 40% HP, M-41-D summons 2 Disruption Towers. Each tower alternates between healing M-41-D and using a large electric AoE when players come close. After the phase change M-41-D also becomes stronger, and several moves gain radius.
+##### Editor's note
+M-41-D is not hard but very annoying: its wide AoEs do little damage yet are deeply insulting, and the Paralyzed procs and resulting stiffness make the fight uncomfortable.
+
+### Umbra
+#### Corus
+##### Base stats
+- Base HP: 12000
+- Phases: 2
+- Weak to: Frost, Shadow
+- Resists: Fire, Luminous
+##### Damage types
+- Deals Fire damage
+##### Behavior
+- The Corus fight has two phases. In phase 1, every attack releases a continuous barrage of fireballs across the arena. He can also leap high and hurl a larger fireball down, leaving a fire pool on the ground that keeps damaging opponents.
+- After his phase-1 death he enters phase 2. In that phase most of the fireballs he fires also leave fire pools covering the arena floor, and his jump attack leaves fire pillars that persist and grow over time. Together with the pools, Corus makes most of the arena hard to traverse, leaving players almost no room to dodge his chained attacks as he closes in.
+##### Editor's note
+A rather peculiar boss: high damage, area denial, DoT, very mobile — roughly on par with Amaziah, except that thankfully it has no Poison resistance. Even so, an under-geared party can still be wiped by its second phase.
+
+#### Yuki
+##### Base stats
+- Base HP: 10000
+- Phases: 2
+- P1 weak to: Electric
+- P2 weak to: Fire
+- P1 resists: none
+- P2 resists: Frost, Electric
+##### Damage types
+- Deals Physical and Frost damage
+##### Behavior
+- The Yuki fight has 2 phases: a ground phase and a flight phase.
+- In phase 1, Yuki tries to punch and grab players. At 50% HP Yuki can slam the ground and release a purple shockwave.
+- In phase 2, Yuki stays airborne permanently and gains ranged ice attacks. At 50% HP Yuki unlocks its full moveset, can split parts of the arena off with ice walls, and can use a devastating spray attack.
+##### Editor's note
+The only (uncertain) non-final boss that switches weaknesses and resistances by phase. Not hard, but very mobile, especially in phase 2. Watch the ice walls: do not try to cross them at low HP, because they deal continuous Frost damage to players who attempt it.
+
+#### Cone Head
+##### Base stats
+- Base HP: 20000
+- Phases: 2
+- Weak to: Shadow
+- Resists: Luminous
+##### Damage types
+- Deals Physical damage
+##### Behavior
+- Cone Head's main moveset uses a traffic-light mechanic: move on green, stop on red, to dodge his attacks. In phase 1 he attacks with one of three swords, occasionally teleports behind the opponent, or covers most of the arena with a traffic-light attack. Failing to follow the rule deals devastating damage. At around 30% HP the sword flies from his hand and he enters a melee sub-phase, chasing and punching the opponent until defeated.
+- After phase 1 is beaten he enters phase 2, draws the remaining two swords and uses the traffic-light mechanic to the full. Every slash is now red or green, dodged by not moving or by moving respectively. His large traffic-light AoE now hits 3 times, forcing opponents to memorise the light order or take heavy damage.
+##### Editor's note
+A "cat lover" and the nemesis of Nekomancer. The traffic-light mechanic usually kills the cats Nekomancer summons, especially in phase 2, where the traffic-light AoE typically clears the field of cats. Other classes that respect the mechanic will not find it hard.
+
+### Late Umbra / Early Eclipse
+#### Mephiel
+##### Base stats
+- Base HP: 19000
+- Phases: 2
+- Weak to: Luminous
+- Resists: Electric
+##### Damage types
+- Deals Shadow damage
+- Can apply Bleeding
+##### Behavior
+- The Mephiel fight has 2 phases. Phase 2 greatly expands the moveset and strengthens earlier moves.
+- Mephiel is a bullet-hell style boss that covers the arena with large numbers of danger zones. In phase 2 Mephiel gains flight, forcing players to focus on surviving for a while rather than damaging the boss.
+- Mephiel has a powerful spinning pizza-cutter move that requires players to circle around it.
+##### Editor's note
+All damage and no mechanics — and plenty of damage (PS: unless you count the spinning cutter as a mechanic). A hard boss whose wide range and high damage can easily wipe a party.
+
+#### Golden Grouch
+##### Base stats
+- Base HP: 18500
+- Phases: 1
+- Weak to: Fire, Luminous
+- Resists: Frost, Electric, Poison
+##### Damage types
+- Deals Physical and Shadow damage
+- Can apply Decayed, Frozen and Heavy
+##### Behavior
+- The Golden Grouch fight has 2 sub-phases, i.e. stances: sword stance and bare-handed stance. The two have completely different movesets. Once per fight, when Golden Grouch drops below 70% HP, his sword is knocked away and he switches to the bare-handed stance. The sword stays next to the Gate as a passive entity. In the bare-handed stance Golden Grouch can use a move that summons 6 Shadow Grouch enemies; that move can be used at most twice.
+- Shadow Grouch HP decays, losing 3% of its max HP per second. Every 10 seconds each Shadow Grouch grants Golden Grouch a brief INVINCIBLE status effect.
+- Below 40% HP in the bare-handed stance, Golden Grouch starts running for the dropped sword, picks it up and switches back to the sword stance. In the sword stance, below a certain HP he gains an expanded moveset.
+##### Editor's note
+Not an easy boss. The INVINCIBLE it gains in the bare-handed stance plus the string of debuffs from its occasional floor-AoE attacks are quite annoying, and once it re-enters the sword form it can also release wide purple attacks that you must dodge promptly.
+
+### Late Umbra
+#### Pandora
+##### Base stats
+- Base HP: 24000
+- Phases: 1
+- Weak to: Fire, Luminous
+- Resists: Frost, Electric, Shadow
+##### Damage types
+- Deals Physical and Frost damage
+##### Behavior
+- Pandora is a flying boss that attacks with large ice AoEs and fast dash attacks. It can create waves of ice shards that must be jumped over, and fires ice lasers horizontally across the arena.
+- Above 50% HP it becomes more aggressive, using larger and more destructive attacks and sweeping across the sky at high speed to release bigger, defence-piercing ice bursts.
+##### Editor's note
+Another fairly hard boss. The large AoEs, lasers and ice storms are very hard to handle, and an under-geared party may be wiped.
+
+### Eclipse
+#### Abaddon
+##### Base stats
+- Base HP: 32000
+- Phases: 2
+- Weak to: Luminous
+- Resists: Frost, Electric, Fire, Poison
+##### Damage types
+- Deals Physical and Shadow damage
+- Can apply Decayed and Heavy
+##### Behavior
+- Abaddon is a huge Manalyte that summons up to 3 Elder Manalytes to fight alongside it. It casts large AoE attacks that create fire pillars and fireballs, as well as dark spheres that apply Decayed to opponents.
+- After its phase-1 death, Abaddon sheds its skin and enters phase 2. The maximum number of Manalytes it can summon rises to 6. Most of its attacks now pierce the opponent's defence and have a larger radius. Its most destructive move is a shockwave that engulfs most of the arena.
+##### Editor's note
+A pure stat-check. It can hold its own against the final boss [Jim C. Bringer](#jim-c-bringer), and in fact many of its moves are similar, with similar resistances too. A boss to take seriously.
+
+#### Khepri
+##### Base stats
+- Base HP: 26000
+- Phases: 2
+- Weak to: Fire, Shadow
+- Resists: Frost, Luminous
+##### Damage types
+- Deals Physical and Frost damage
+##### Behavior
+- The Khepri fight has 2 phases. In phase 2 Khepri gains greatly increased mobility and flight.
+- Khepri can release powerful pizza-cutter shaped ice attacks, which can chain up to 3 times. If players stay far away in phase 1, it throws extremely accurate ice spikes that always apply Frozen.
+- In phase 2, if players approach Khepri it may choose to scream. Everyone inside the purple radius is applied Frozen, and it immediately takes flight. While flying, Khepri can both grab players and throw out tearing spreads of ice projectiles, all of which apply a long Frozen.
+##### Editor's note
+Another stat-check, and very mobile. Easily wipes a party.
+
+#### Onyx Pilot
+##### Base stats
+- Base HP: 24000
+- Phases: 1
+- Weak to: Fire, Shadow
+- Resists: Electric, Luminous
+##### Damage types
+- Deals Physical damage
+##### Behavior + Editor's note
+- Most of Onyx Pilot's attacks are ground slams or kicks, and the slams also create stone pillars that deal purple damage. Once its HP falls below a certain value, Onyx Pilot restores a large amount of HP (up to 5 times) and upgrades its slam, summoning more stone pillars.
+- A pure HP wall: the health bar you see may be only half of what you actually have to chew through, but its overall threat is not high.
+
+### Late Eclipse
+#### Bravera
+##### Base stats
+- Base HP: 28000
+- Phases: 2
+- Weak to: Fire, Poison
+- Resists: Frost, Luminous, Electric
+##### Damage types
+- Deals Physical and Electric damage
+##### Behavior
+- The Bravera fight has 2 phases. In phase 1 Bravera spawns together with 2 Opton Guards. The Opton Guards seek out the player with the lowest HP in the lobby and harass them continuously. Damaging Bravera does not require killing the guards, so the party decides who to attack.
+- In phase 1, when Bravera reaches 50% HP he unlocks 2 new moves. He can now use Corkscrew Leap to cross long distances, and may end a dash with a heavy single-hit Pizza-cutter.
+- Once phase 2 begins, Bravera unlocks a new moveset. It is far more agile than phase 1 and includes intense melee combos and dash abilities, making it hard to escape Bravera without support from teammates. In phase 2, at 50% HP, Bravera can use an upgraded version of the earlier Pizza-cutter: it now hits twice and can be used at any moment.
+##### Editor's note
+Another stat-check: high damage and strong harassment. Easily wipes a party.
+
+#### O-One
+##### Base stats
+- Base HP: 16000
+- Phases: 1
+- Weak to: Frost, Shadow
+- Resists: Luminous
+##### Damage types
+- Deals Physical damage
+- Can apply Paralyzed
+##### Behavior
+- The O-One fight has two sub-phases.
+- In the first sub-phase he uses a small battle axe and a pistol. He usually circles the opponent while shooting, occasionally dashing in to strike with the axe. He mostly repeats the loop of "shoot from range" and "fast close-range slash".
+- At 40% HP he swaps weapons for a single sword and attacks at close range with higher speed and new attacks.
+##### Editor's note
+Not hard; apart from being very mobile there is little to complain about. In the "all-star" Late Eclipse phase he looks rather plain.
+
+#### Neo Pilot
+##### Base stats
+- Base HP: 27000
+- Phases: 1
+- Weak to: Fire, Shadow
+- Resists: Luminous, Electric
+##### Damage types
+- Deals Physical and Electric damage
+- Can apply Heavy
+##### Behavior
+- The Neo Pilot fight has 2 sub-phases. If players take to the air while fighting Neo Pilot, she leaps at them and tries to kick twice. Those kicks have a chance to apply the Heavy status effect.
+- In her normal state Neo Pilot uses slashes and sidesteps. Above 70% HP she starts jumping at players from long range.
+- Once per fight, at 40% HP, Neo Pilot enters sub-phase 2. She heals a large amount of HP and attaches an electric shockwave to all of her jumps, which players must jump over to dodge. Her melee attacks also gain a significant speed increase. At 40% HP again, she unlocks two powerful new moves: the first is a near-instant front-facing tankbuster that requires players to keep their distance; the second is a fast three-hit pizza-cutter.
+##### Editor's note
+A miserable fight. The shockwaves in the second sub-phase are annoying and hit hard. Easily wipes a party.
+
+### Eye of the Eclipse
+#### Jim C. Bringer
+##### Base stats
+- Base HP: 50000
+- Phases: 3
+- Weak to: none
+- P1 resists: none
+>P2 is immune to all damage, see Behavior
+- P3 resists: Elemental
+##### Damage types
+- Deals Physical damage
+##### Behavior
+**All of Jim's direct melee attacks deal PURPLE damage!**
+- Phase 1: In phase 1 Jim is neutral to every damage type. His punches are strong and long-ranged, and he ignores any aggro ability, because his target is completely random across every phase of the fight. At 70% HP Jim unlocks more moves, including long-distance jumps and the notorious powerful laser. At 40% HP Jim can cast Cataclysm, a long channelled near-arena-sized nuke. Standing inside the centre radius of Cataclysm kills instantly, but the further you are from the centre the less damage you take. After casting Cataclysm he is passive for a long time, so use that window to heal the party and revive dead players.
+>At 70%, 50% and 30% HP Jim pauses and summons a Jim's Wedge, a powerful support enemy that fires from long range.
+- Phase 2: When phase 2 begins Jim climbs into Flipper MK.II Abyssal and stays inside for the whole phase. Flipper is immune to all damage and treats any damage as Blocked. It has 3 moves: ramming players at extremely high speed for heavy purple damage; deploying Jim's Wedge; and firing rocket barrages at the target from any distance.
+>After 2 minutes, 4 Signal Towers land in the four corners of the arena. Players must stand inside these Signal Towers to charge them. Charging one alone takes 30 seconds, but that time increases with the number of players in the lobby. Multiple players under the same Signal Tower charge it faster. Once all 4 Signal Towers are charged, an orbital strike lands on Flipper and destroys it.
+- Phase 3: Phase 3 consists of 2 sub-phases. Jim behaves like the original phase 1, but his entire moveset is strengthened. He swings faster, his combos are longer, and he unlocks extremely powerful combo finishers. Besides Physical, Jim now also gains 0.75x resistance to all elements.
+>At 70% HP Jim unlocks the same moves as before, but strengthened again. His laser is wider and faster, and his jumps deal more damage. Jim can now also teleport next to distant players, or teleport mid-combo to catch players off guard.
+><br>At 50% HP the second sub-phase begins. After a fairly long cooldown, a Product Barrel drops into the arena, landing directly opposite the side Jim is standing on. Jim becomes invincible and starts slowly jogging toward the barrel. Players must destroy it before he arrives. If Jim reaches the barrel he consumes it, healing a large amount of HP and gaining long-lasting ENFORCED and EMPOWERED buffs. If he heals above 50% HP this way, he cannot drop more barrels until the threshold is reached again. And in the second sub-phase Jim's moveset expands once more, unlocking powerful moves that often affect the entire arena.</br>
+##### Editor's note
+The perfect mix of stats and mechanics. As a final boss it applies plenty of pressure, and a low-gear party will not clear it easily.
+
+#### Gilgamesh
+##### Base stats
+- Base HP: 70000
+- Phases: 3
+- Weak to: Fire, Luminous
+- Resists: Frost, Shadow, Poison
+##### Damage types
+- Deals Physical, Electric and Shadow damage
+- Can apply Heavy
+##### Behavior
+- Phase 1: Gilgamesh drives its spider legs into the arena, dealing purple damage in an area plus a slow shockwave covering the whole field; players must dodge both and then attack the legs. Gilgamesh also spits projectiles or calls lightning to disrupt your damage. In addition it slowly spits over the whole arena, which players must dodge in time.
+- Phase 2: At the start of phase 2 Gilgamesh retreats off the field and a ladybug named Maurice spawns inside it. Maurice has a very small hitbox and many attacks; once players defeat Maurice, Maurice attacks Gilgamesh and Gilgamesh then enters phase 3.
+- Phase 3: Phase 3 consists of two sub-phases. In the first, Gilgamesh uses most of its phase-1 skills — spider-leg slams, summoned lightning, projectile spit — and may also continuously pull players toward the centre of the field while damaging them. Gilgamesh also unlocks new skills, including extremely large AoEs and repeated spider-leg slams, all of which spawn shockwaves.
+>After a while Gilgamesh leaves the field and continuously spawns small spiders inside it; players must clear them or they will interfere with later damage. After remaining outside for a while, Gilgamesh returns and releases a massive AoE together with a shockwave.
+><br>When players empty Gilgamesh's health bar, Gilgamesh restores all of its HP and begins charging, entering the second sub-phase; players who are downed with Mortal Curse can now be revived normally. Players must kill Gilgamesh before the charge completes, or Gilgamesh wipes the party. In the second sub-phase Gilgamesh focuses on charging and only occasionally summons lightning to disrupt players, and no longer spawns shockwaves.</br>
+##### Editor's note
+A miserable fight. As a final boss it feels slightly lacking — especially the unexplained phase 2 and phase 3 — and the charge is effectively a DPS check. Jim has a similar design, but a forced wipe for low DPS is still criticised.
